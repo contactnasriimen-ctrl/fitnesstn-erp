@@ -11,7 +11,9 @@ if (is_post()) {
     $error = login_attempt($username, (string)($_POST['password'] ?? ''));
     if (!$error) {
         $next = (string)($_GET['next'] ?? '');
-        redirect(preg_match('#^/?index\.php\?r=[a-z_]+#', ltrim($next, '/')) ? ltrim($next, '/') : url('dashboard'));
+        // Retour à la page demandée, même si l'ERP est installé dans un sous-dossier.
+        $back = preg_match('#(?:^|/)index\.php\?(r=[a-z_]+[^\s"<>]*)$#', $next, $m) ? 'index.php?' . $m[1] : url('dashboard');
+        redirect($back);
     }
 }
 
