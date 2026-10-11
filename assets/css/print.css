@@ -1,0 +1,60 @@
+/* Ticket de caisse 80 mm et facture A4. */
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.4 "Segoe UI", system-ui, Arial, sans-serif; color: #000; background: #eef1f6; }
+.toolbar { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; background: #0a1f4d; }
+.toolbar button, .toolbar a { font: 600 13px inherit; padding: 8px 14px; border-radius: 8px; border: 0; background: #1f7bff; color: #fff; text-decoration: none; cursor: pointer; }
+.toolbar a { background: rgba(255, 255, 255, .12); }
+.paper { background: #fff; margin: 18px auto; box-shadow: 0 6px 24px rgba(0, 0, 0, .12); }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.small { font-size: 11px; color: #333; }
+.stamp { text-align: center; font-weight: 800; color: #c0262d; border: 2px solid #c0262d; padding: 4px; margin: 8px 0; letter-spacing: 1px; }
+
+/* Ticket */
+.ticket .paper { width: 80mm; padding: 5mm 4mm; font-size: 12px; }
+.t-head { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+.t-logo { width: 34px; height: 34px; filter: grayscale(1) brightness(0); }
+.t-head h1 { font-size: 18px; margin: 2px 0; }
+.t-head p { margin: 2px 0; font-size: 11px; }
+.t-meta { font-size: 11.5px; margin: 6px 0; }
+.t-items, .t-tot { width: 100%; border-collapse: collapse; }
+.t-items td { padding: 1px 0; vertical-align: top; }
+.t-items .name { font-weight: 600; padding-top: 5px; }
+.t-tot { border-top: 1px dashed #000; margin-top: 6px; padding-top: 4px; }
+.t-tot td { padding: 2px 0; }
+.t-tot .big td { font-weight: 800; font-size: 14px; padding-top: 4px; }
+.t-foot { text-align: center; border-top: 1px dashed #000; margin-top: 8px; padding-top: 6px; font-size: 11px; }
+
+/* Facture A4 */
+.a4 .paper { width: 210mm; min-height: 297mm; padding: 16mm 15mm; }
+.a4-head { display: flex; justify-content: space-between; gap: 20px; border-bottom: 3px solid #0a1f4d; padding-bottom: 12px; }
+.a4-head .brand { display: flex; gap: 12px; align-items: flex-start; }
+.a4-head .brand img { width: 54px; height: 54px; background: #0b3fb3; border-radius: 12px; padding: 6px; }
+.a4-head h1 { margin: 0 0 4px; font-size: 22px; color: #0a1f4d; }
+.a4-head p { margin: 0; font-size: 11.5px; color: #333; }
+.a4-head .doc { text-align: right; }
+.a4-head .doc h2 { margin: 0 0 6px; font-size: 26px; letter-spacing: 2px; color: #0a1f4d; }
+.a4-client { margin: 18px 0; padding: 10px 14px; border: 1px solid #ccd5e3; border-radius: 8px; width: 55%; margin-left: auto; }
+.a4-client h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; color: #555; letter-spacing: 1px; }
+.a4-client p { margin: 0; }
+.a4-items { width: 100%; border-collapse: collapse; margin: 10px 0 16px; }
+.a4-items th { background: #0a1f4d; color: #fff; text-align: left; padding: 7px 8px; font-size: 11.5px; }
+.a4-items th.num { text-align: right; }
+.a4-items td { padding: 7px 8px; border-bottom: 1px solid #e1e6ee; vertical-align: top; }
+.a4-items small { color: #555; }
+.a4-bottom { display: flex; gap: 20px; justify-content: space-between; align-items: flex-start; }
+.a4-vat, .a4-tot { border-collapse: collapse; }
+.a4-vat th, .a4-vat td { border: 1px solid #ccd5e3; padding: 5px 8px; font-size: 11.5px; }
+.a4-vat th { background: #f2f5fa; }
+.a4-tot { min-width: 280px; }
+.a4-tot td { padding: 4px 8px; }
+.a4-tot .big td { font-weight: 800; font-size: 15px; border-top: 2px solid #0a1f4d; }
+.a4-foot { margin-top: 30px; padding-top: 8px; border-top: 1px solid #ccd5e3; text-align: center; font-size: 11px; color: #555; }
+
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .paper { margin: 0; box-shadow: none; }
+  .ticket .paper { width: 100%; padding: 0 2mm; }
+  @page { margin: 0; }
+  .a4 .paper { padding: 12mm; min-height: 0; }
+}

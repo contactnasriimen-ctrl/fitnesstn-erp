@@ -1,0 +1,5 @@
+# Hébergement Apache : seules index.php et assets/ sont publics.
+Options -Indexes
+<FilesMatch "\.(txt|md|bat|sqlite|sql|csv|json|log|ps1|sh)$">
+  Require all denied
+</FilesMatch>

@@ -1,0 +1,8 @@
+data/*.sqlite*
+data/tmp/
+data/uploads/
+IDENTIFIANTS.txt
+node_modules/
+tests/out/
+assets/img/uploads/*
+!assets/img/uploads/.gitkeep
