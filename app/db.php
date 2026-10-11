@@ -18,7 +18,8 @@ function db(): PDO
     ]);
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA busy_timeout = 5000');
-    $pdo->exec('PRAGMA journal_mode = WAL');
+    // WAL seulement en local : sur un hébergement mutualisé (disque réseau) le mode classique est plus sûr.
+    $pdo->exec('PRAGMA journal_mode = ' . (PHP_SAPI === 'cli-server' || getenv('FTN_WAL') ? 'WAL' : 'DELETE'));
     if ($fresh || !table_exists($pdo, 'settings')) {
         db_install($pdo);
     }
@@ -232,7 +233,7 @@ function db_install(PDO $pdo): void
     }
     $lines[] = '';
     $lines[] = 'Changez ces mots de passe après la première connexion (menu « Mon compte »).';
-    if (!$fixed) @file_put_contents(APP_ROOT . '/IDENTIFIANTS.txt', implode("\r\n", $lines) . "\r\n");
+    if (!$fixed) @file_put_contents(DATA_DIR . '/IDENTIFIANTS.txt', implode("\r\n", $lines) . "\r\n");
 
     // Quelques tâches de départ
     $now = now();

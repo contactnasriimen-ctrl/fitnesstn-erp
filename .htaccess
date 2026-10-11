@@ -1,5 +1,15 @@
-# Hébergement Apache : seules index.php et assets/ sont publics.
+# Hébergement Apache / LiteSpeed : seuls index.php, check.php et assets/ sont publics.
 Options -Indexes
-<FilesMatch "\.(txt|md|bat|sqlite|sql|csv|json|log|ps1|sh)$">
-  Require all denied
+DirectoryIndex index.php
+<FilesMatch "\.(txt|md|bat|sqlite|sqlite-journal|sqlite-wal|sqlite-shm|sql|csv|json|log|ps1|sh|mjs|lock)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>

@@ -23,7 +23,7 @@ Caisse, ventes, stock multi-sites, livraisons & transporteurs, tâches (Kanban),
 Double-cliquez sur **`start.bat`** : le navigateur s’ouvre sur http://localhost:8093.
 Gardez la fenêtre noire ouverte pendant l’utilisation.
 
-Au tout premier lancement, la base `data/erp.sqlite` est créée, les **182 produits** du site (export WooCommerce du 11/10/2026) sont importés avec leurs photos, et les comptes de départ sont écrits dans **`IDENTIFIANTS.txt`**.
+Au tout premier lancement, la base `data/erp.sqlite` est créée, les **182 produits** du site (export WooCommerce du 11/10/2026) sont importés avec leurs photos, et les comptes de départ sont écrits dans **`data/IDENTIFIANTS.txt`** (dossier protégé).
 
 | Identifiant | Rôle |
 |---|---|
@@ -58,7 +58,9 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 
 ## Utiliser l’ERP depuis les deux showrooms
 
-`start.bat` fonctionne sur un seul ordinateur. Pour que Tunis et Nabeul travaillent sur la même base, installez le dossier sur un hébergement **PHP 8 avec SQLite** (offre mutualisée classique, en HTTPS), sans le dossier `tests/`. Les fichiers `.htaccess` protègent `app/`, `data/` et `tools/`.
+`start.bat` fonctionne sur un seul ordinateur. Pour que Tunis et Nabeul travaillent sur la même base, installez le dossier sur un hébergement **PHP 8 avec SQLite** (Apache ou LiteSpeed, en HTTPS), sans les dossiers `tests/` et `docs/`. Les fichiers `.htaccess` protègent `app/`, `data/` et `tools/`.
+
+Après l’envoi des fichiers, ouvrez **`/check.php`** : la page vérifie PHP, SQLite, les droits d’écriture et que la base de données n’est pas téléchargeable. Tout doit être vert avant d’utiliser l’ERP.
 
 ## Pour le développeur
 

@@ -2,6 +2,7 @@ data/*.sqlite*
 data/tmp/
 data/uploads/
 IDENTIFIANTS.txt
+data/IDENTIFIANTS.txt
 node_modules/
 tests/out/
 assets/img/uploads/*
