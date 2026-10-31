@@ -1,7 +1,7 @@
 // Test de bout en bout de l'ERP : serveur PHP sur une base temporaire, 4 rôles, caisse, droits, CSV.
 // Usage : node tests/e2e.mjs
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,7 @@ let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; console.log('  ✓', msg); } else { fail++; console.log('  ✗', msg); } };
 
 const server = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, 'router.php'], {
-  cwd: ROOT, env: { ...process.env, FTN_DB: join(tmp, 'erp.sqlite'), FTN_SEED_PASSWORD: PW, FTN_DEBUG: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, env: { ...process.env, FTN_DB: join(tmp, 'erp.sqlite'), FTN_SEED_PASSWORD: PW, FTN_DEBUG: '1', FTN_BACKUP_DIR: join(tmp, 'backups') }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverLog = '';
 server.stderr.on('data', (d) => { serverLog += d; });
@@ -308,6 +308,38 @@ async function main() {
   ok(r.text.includes('Paramètres de facturation enregistrés') && r.text.includes('name="next_invoice" type="number" min="1" value="19"'), 'numérotation : prochaine facture n° 19');
   r = await admin.form('index.php?r=settings&a=billing', { ...billing, next_invoice: '2' });
   ok(r.text.includes('déjà utilisé'), 'numéro de facture déjà utilisé refusé');
+
+  console.log('Factures, caisse & finances');
+  await admin.form('index.php?r=pos&a=open&loc=1', { float: '100' });
+  const expectedCash = async () => +(((await admin.follow('index.php?r=pos&a=close&loc=1')).text.match(/data-expected="(\d+)"/) || [])[1] || -1);
+  const exp1 = await expectedCash();
+  r = await admin.form('index.php?r=invoices&a=save', { 'client[name]': 'Salle Test', 'client[phone]': '71 222 333', date: new Date().toISOString().slice(0, 10), location_id: '1',
+    'items[0][label]': 'Service installation', 'items[0][qty]': '1', 'items[0][unit_price]': '500', 'items[0][vat_rate]': '19', due_date: '2020-01-01' });
+  ok(r.text.includes('échéance précède'), 'échéance antérieure à la date refusée');
+  r = await admin.form('index.php?r=invoices&a=save', { 'client[name]': 'Salle Test', 'client[phone]': '71 222 333', date: new Date().toISOString().slice(0, 10), location_id: '1',
+    'items[0][label]': 'Service installation', 'items[0][qty]': '1', 'items[0][unit_price]': '500', 'items[0][vat_rate]': '19' });
+  const inv3 = docId(r.text);
+  ok(/Facture 000019\/\d\d/.test(r.text), 'numérotation reprise à 000019');
+  ok(r.text.includes('ajoutées à la caisse ouverte'), 'paiement : la caisse ouverte est signalée');
+  r = await admin.form('index.php?r=invoices&a=pay', { id: String(inv3), amount: '200', method: 'especes', reference: '' });
+  ok(r.text.includes('caisse n°'), 'paiement espèces rattaché à la caisse ouverte');
+  const exp2 = await expectedCash();
+  ok(exp1 >= 0 && exp2 - exp1 === 200000, `clôture : espèces attendues + 200 DT de paiement de facture (${exp1} → ${exp2})`);
+  r = await admin.follow('index.php?r=finances&a=receivables');
+  ok(r.text.includes('Factures à encaisser') && r.text.includes('Salle Test') && r.text.includes('Relancer'), 'à encaisser : facture avec relance WhatsApp');
+  r = await admin.follow('index.php?r=finances&p=annee');
+  ok(clean(r.text) && /facture\(s\) hors caisse/.test(r.text), 'synthèse : CA inclut les factures hors caisse');
+  r = await admin.follow(`index.php?r=io&a=export&ds=paiements&from=2026-01-01&to=2030-12-31`);
+  ok(r.text.includes('Facture 000019/'), 'export des paiements : paiement de facture inclus');
+  const cl = await admin.json('index.php?r=pos&a=checkout&loc=1', { location_id: 1, items: [{ product_id: corde.id, qty: 1, unit_price: '49' }], discount: '0',
+    client: { name: 'Client Caisse', phone: '55 666 777' }, payments: [{ method: 'carte', amount: '49' }] });
+  ok(cl.ok && cl.has_client === true, 'caisse : facture officielle proposée quand le client est renseigné');
+  r = await admin.follow('index.php?r=settings');
+  ok(r.text.includes('Sauvegardes') && /erp-fitnesstn|backup_file/.test(r.text), 'sauvegarde automatique du jour listée');
+  const bk = readdirSync(join(tmp, 'backups'));
+  ok(bk.length === 1 && /^erp-\d{4}-\d\d-\d\d\.sqlite$/.test(bk[0]), 'fichier de sauvegarde créé : ' + bk.join(', '));
+  r = await admin.req('index.php?r=settings&a=backup_file&f=' + encodeURIComponent('../erp.sqlite'));
+  ok(r.status === 302, 'téléchargement de sauvegarde : nom de fichier contrôlé');
 
   console.log('Pages finales sans erreur');
   for (const p of ['dashboard', 'finances', 'finances&a=receivables', 'marketing&a=stats', 'audit', 'clients&a=view&id=1']) {

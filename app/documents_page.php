@@ -338,7 +338,7 @@ if ($a === 'view') {
             <?php if ($pays): ?>
               <ul class="pay-list">
                 <?php foreach ($pays as $p): ?>
-                  <li><span class="pl-ic"><?= icon('cash') ?></span><span class="pl-main"><b><?= money($p['amount']) ?></b><small><?= e(PAY_METHODS[$p['method']] ?? $p['method']) ?> · <?= fdate($p['date']) ?><?= $p['reference'] ? ' · ' . e($p['reference']) : '' ?></small></span>
+                  <li><span class="pl-ic"><?= icon('cash') ?></span><span class="pl-main"><b><?= money($p['amount']) ?></b><small><?= e(PAY_METHODS[$p['method']] ?? $p['method']) ?> · <?= fdate($p['date']) ?><?= $p['reference'] ? ' · ' . e($p['reference']) : '' ?><?= $p['session_id'] ? ' · <a href="' . e(url('finances', ['a' => 'session', 'id' => $p['session_id']])) . '">caisse n° ' . (int)$p['session_id'] . '</a>' : '' ?></small></span>
                     <?php if (is_admin() && $d['status'] !== 'annulee'): ?>
                       <form method="post" action="<?= e(url($route, ['a' => 'pay_delete'])) ?>" onsubmit="return confirm('Supprimer ce paiement ?')"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>"><input type="hidden" name="payment_id" value="<?= (int)$p['id'] ?>"><button class="icon-btn xs" title="Supprimer"><?= icon('trash') ?></button></form>
                     <?php endif; ?></li>
@@ -355,6 +355,8 @@ if ($a === 'view') {
                   <label>Mode<select name="method"><?= opt(PAY_METHODS, 'virement') ?></select></label>
                   <label>Référence<input name="reference" maxlength="80" placeholder="N° chèque, virement…"></label>
                 </div>
+                <?php $sess = $d['location_id'] ? open_session((int)$d['location_id']) : null; ?>
+                <p class="hint"><?= $sess ? 'Espèces : ajoutées à la caisse ouverte de ' . e(location((int)$d['location_id'])['name'] ?? '') . ' et comptées à la clôture.' : 'Espèces : aucune caisse ouverte pour ce showroom, le montant ne sera pas compté dans une clôture.' ?></p>
                 <button class="btn primary sm block"><?= icon('cash') ?>Enregistrer le paiement</button>
               </form>
             <?php endif; ?>

@@ -43,7 +43,8 @@ if ($a === 'checkout' && is_post()) {
     try {
         $res = sale_create($in);
         json_out(['ok' => true, 'id' => $res['id'], 'number' => $res['number'],
-            'ticket' => url('ticket', ['id' => $res['id']]), 'invoice' => url('ticket', ['id' => $res['id'], 'format' => 'a4'])]);
+            'ticket' => url('ticket', ['id' => $res['id']]), 'invoice' => url('ticket', ['id' => $res['id'], 'format' => 'a4']),
+            'has_client' => (bool)val('SELECT client_id FROM sales WHERE id = ?', [$res['id']])]);
     } catch (RuntimeException $e) {
         json_out(['ok' => false, 'error' => $e->getMessage()], 422);
     }
@@ -313,7 +314,11 @@ layout_start('Caisse · ' . $loc['name'], 'pos', ['actions' => $actions, 'wide' 
     <p class="change-big" id="done-change" hidden></p>
     <div class="row-actions center">
       <a class="btn" id="done-ticket" target="_blank"><?= icon('print') ?>Ticket</a>
-      <a class="btn" id="done-invoice" target="_blank"><?= icon('receipt') ?>Facture A4</a>
+      <a class="btn" id="done-invoice" target="_blank"><?= icon('receipt') ?>Reçu A4</a>
+      <?php if (can('invoices.edit')): ?>
+        <form method="post" action="<?= e(url('invoices', ['a' => 'from_sale'])) ?>" target="_blank" id="done-inv-form" class="inline" hidden>
+          <?= csrf_field() ?><input type="hidden" name="sale_id" id="done-sale"><button class="btn"><?= icon('invoice') ?>Facture officielle</button></form>
+      <?php endif; ?>
       <button class="btn primary" type="button" id="done-new"><?= icon('plus') ?>Nouvelle vente</button>
     </div>
   </div>

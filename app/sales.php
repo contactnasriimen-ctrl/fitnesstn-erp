@@ -26,6 +26,12 @@ function session_totals(array $s): array
     foreach (all('SELECT method, SUM(amount) t, COUNT(*) n FROM payments WHERE session_id = ? GROUP BY method', [$s['id']]) as $r) {
         $by[$r['method']] = (int)$r['t'];
     }
+    // Paiements de factures reçus dans cette caisse (espèces)
+    $inv = 0;
+    foreach (all('SELECT method, SUM(amount) t FROM document_payments WHERE session_id = ? GROUP BY method', [$s['id']]) as $r) {
+        $by[$r['method']] = ($by[$r['method']] ?? 0) + (int)$r['t'];
+        $inv += (int)$r['t'];
+    }
     $cashOut = (int)(val("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE session_id = ? AND method = 'especes'", [$s['id']]) ?? 0);
     $sales = one("SELECT COUNT(*) n, COALESCE(SUM(total),0) t FROM sales WHERE session_id = ? AND status <> 'annulee'", [$s['id']]);
     $cashIn = $by['especes'] ?? 0;
@@ -37,6 +43,7 @@ function session_totals(array $s): array
         'sales_count' => (int)$sales['n'],
         'sales_total' => (int)$sales['t'],
         'collected' => array_sum($by),
+        'invoices' => $inv,
     ];
 }
 

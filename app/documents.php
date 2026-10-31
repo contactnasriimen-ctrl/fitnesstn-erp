@@ -288,7 +288,8 @@ function doc_from_sale(int $saleId): int
         ]);
         foreach (all('SELECT * FROM payments WHERE sale_id = ? ORDER BY id', [$s['id']]) as $p) {
             insert('document_payments', ['document_id' => $id, 'date' => substr($p['created_at'], 0, 10), 'method' => $p['method'],
-                'amount' => (int)$p['amount'], 'reference' => $p['reference'] ?: $s['number'], 'user_id' => $p['user_id'], 'created_at' => now()]);
+                'amount' => (int)$p['amount'], 'reference' => $p['reference'] ?: $s['number'], 'user_id' => $p['user_id'], 'created_at' => now(),
+                'location_id' => $s['location_id']]);
         }
         doc_refresh_paid($id);
         return $id;
@@ -310,9 +311,12 @@ function doc_add_payment(array $d, string $method, int $amount, string $referenc
     if (!isset(PAY_METHODS[$method])) throw new RuntimeException('Mode de paiement invalide.');
     $rest = (int)$d['net'] - (int)$d['paid'];
     if ($amount <= 0 || $amount > $rest) throw new RuntimeException('Montant invalide (reste à payer : ' . money($rest) . ').');
-    tx(function () use ($d, $method, $amount, $reference, $date) {
+    // Espèces reçues au showroom : comptées dans la caisse ouverte (clôture et billetage).
+    $session = $method === 'especes' && $d['location_id'] ? open_session((int)$d['location_id']) : null;
+    tx(function () use ($d, $method, $amount, $reference, $date, $session) {
         insert('document_payments', ['document_id' => $d['id'], 'date' => $date ?: today(), 'method' => $method, 'amount' => $amount,
-            'reference' => mb_substr($reference, 0, 80), 'user_id' => user()['id'] ?? null, 'created_at' => now()]);
+            'reference' => mb_substr($reference, 0, 80), 'user_id' => user()['id'] ?? null, 'created_at' => now(),
+            'location_id' => $d['location_id'], 'session_id' => $session['id'] ?? null]);
         doc_refresh_paid((int)$d['id']);
         audit('paiement de facture', 'document', $d['id'], $d['number'] . ' · ' . PAY_METHODS[$method] . ' ' . money($amount));
     });
@@ -323,6 +327,9 @@ function doc_delete_payment(array $d, int $paymentId): void
     if (!is_admin()) throw new RuntimeException('Suppression réservée à l’administrateur.');
     $p = one('SELECT * FROM document_payments WHERE id = ? AND document_id = ?', [$paymentId, $d['id']]);
     if (!$p) throw new RuntimeException('Paiement introuvable.');
+    if ($p['session_id'] && val("SELECT status FROM cash_sessions WHERE id = ?", [$p['session_id']]) === 'fermee') {
+        throw new RuntimeException('Ce paiement en espèces fait partie d’une caisse déjà clôturée : il ne peut plus être supprimé.');
+    }
     tx(function () use ($d, $p) {
         q('DELETE FROM document_payments WHERE id = ?', [$p['id']]);
         doc_refresh_paid((int)$d['id']);

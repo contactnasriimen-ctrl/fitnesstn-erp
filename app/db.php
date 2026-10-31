@@ -27,7 +27,7 @@ function db(): PDO
     return $pdo;
 }
 
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
 function db_migrate(PDO $pdo): void
@@ -46,7 +46,7 @@ function db_migrate(PDO $pdo): void
             'company_legal_name' => '', 'company_address' => '',
             'invoice_prefix' => '', 'quote_prefix' => 'DV-',
             'invoice_terms' => 'Paiement comptant à la livraison', 'invoice_transport' => 'Gratuit', 'invoice_warranty' => 'Selon le produit',
-            'quote_validity_days' => '15', 'invoice_due_days' => '0', 'doc_color' => '#145c54',
+            'quote_validity_days' => '15', 'invoice_due_days' => '0', 'doc_color' => '#145c54', 'doc_stamp' => '', 'auto_backup' => '1',
             'bank_name' => '', 'bank_rib' => '', 'bank_iban' => '', 'bank_bic' => '',
             'warranty_notice' => "Toute utilisation hors du cadre domestique (usage professionnel, salle de sport, collectivité, kiné…) ou non conforme aux conditions normales d’utilisation entraîne l’annulation immédiate de la garantie.\n"
                 . 'يلغى الضمان تلقائيا في حالة ثبوت استخدام الجهاز خارج النطاق المنزلي الخاص أو في ظروف لا تتوافق مع معايير الاستخدام المنصوص عليها.',
@@ -58,6 +58,33 @@ function db_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         $pdo->exec('ROLLBACK');
         throw $e;
+    }
+}
+
+function backup_dir(): string
+{
+    return getenv('FTN_BACKUP_DIR') ?: DATA_DIR . '/backups';
+}
+
+/**
+ * Copie de la base une fois par jour (au premier passage d'un utilisateur connecté), 14 jours conservés.
+ * Pas dans la démo navigateur (fichiers sous /www), ni pour une base de test sans FTN_BACKUP_DIR.
+ */
+function db_auto_backup(): void
+{
+    if (str_starts_with(DATA_DIR, '/www') || (getenv('FTN_DB') && !getenv('FTN_BACKUP_DIR'))) return;
+    if (setting('auto_backup', '1') !== '1' || setting('last_backup') === today()) return;
+    $dir = backup_dir();
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true)) return;
+    $file = $dir . '/erp-' . today() . '.sqlite';
+    try {
+        set_setting('last_backup', today());
+        if (!is_file($file)) db()->exec('VACUUM INTO ' . db()->quote($file));
+        $all = glob($dir . '/erp-*.sqlite') ?: [];
+        sort($all);
+        foreach (array_slice($all, 0, max(0, count($all) - 14)) as $old) @unlink($old);
+    } catch (Throwable $e) {
+        error_log('[ERP] sauvegarde automatique : ' . $e->getMessage());
     }
 }
 

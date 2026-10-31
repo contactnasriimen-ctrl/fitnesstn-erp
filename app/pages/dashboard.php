@@ -16,14 +16,18 @@ $ca = function (string $from, string $to, ?int $loc = null) use ($locIn): array 
     $sql = "SELECT COUNT(*) n, COALESCE(SUM(total),0) t, COALESCE(SUM(total - paid),0) rest FROM sales
             WHERE status <> 'annulee' AND date(created_at) BETWEEN ? AND ? AND location_id " . ($loc ? '= ' . (int)$loc : "IN ($locIn)");
     $r = one($sql, [$from, $to]);
-    return ['n' => (int)$r['n'], 't' => (int)$r['t'], 'rest' => (int)$r['rest']];
+    // Factures établies hors caisse (devis transformés, factures directes)
+    $inv = (int)val("SELECT COALESCE(SUM(total),0) FROM documents WHERE type = 'facture' AND sale_id IS NULL AND status <> 'annulee'
+        AND date BETWEEN ? AND ? AND location_id " . ($loc ? '= ' . (int)$loc : "IN ($locIn)"), [$from, $to]);
+    return ['n' => (int)$r['n'], 't' => (int)$r['t'] + $inv, 'inv' => $inv, 'rest' => (int)$r['rest']];
 };
 
 $todayAll = $ca($today, $today);
 $month = $ca($monthStart, $today);
 $prev = $ca($prevStart, $prevSameDay);
-$basket = $month['n'] ? intdiv($month['t'], $month['n']) : 0;
-$receivable = (int)val("SELECT COALESCE(SUM(total - paid),0) FROM sales WHERE status = 'partielle' AND location_id IN ($locIn)");
+$basket = $month['n'] ? intdiv($month['t'] - $month['inv'], $month['n']) : 0;
+$receivable = (int)val("SELECT COALESCE(SUM(total - paid),0) FROM sales WHERE status = 'partielle' AND location_id IN ($locIn)")
+    + (int)val("SELECT COALESCE(SUM(net - paid),0) FROM documents WHERE type = 'facture' AND sale_id IS NULL AND status IN ('emise','partielle')" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
 $codOwed = (int)val("SELECT COALESCE(SUM(cod_amount),0) FROM shipments WHERE status = 'livree' AND cod_collected = 0" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
 $shipOpen = (int)val("SELECT COUNT(*) FROM shipments WHERE status IN ('a_preparer','en_cours')" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
 $shipLate = (int)val("SELECT COUNT(*) FROM shipments WHERE status IN ('a_preparer','en_cours') AND planned_date < ?" . ($scope ? ' AND location_id = ' . (int)$scope : ''), [$today]);
@@ -37,6 +41,10 @@ foreach ($showrooms as $l) {
     foreach (all("SELECT date(created_at) d, SUM(total) t FROM sales WHERE status <> 'annulee' AND location_id = ? AND date(created_at) >= ? GROUP BY d", [$l['id'], $days[0]]) as $r) {
         $idx = array_search($r['d'], $days, true);
         if ($idx !== false) $vals[$idx] = (int)$r['t'];
+    }
+    foreach (all("SELECT date d, SUM(total) t FROM documents WHERE type = 'facture' AND sale_id IS NULL AND status <> 'annulee' AND location_id = ? AND date >= ? GROUP BY date", [$l['id'], $days[0]]) as $r) {
+        $idx = array_search($r['d'], $days, true);
+        if ($idx !== false) $vals[$idx] += (int)$r['t'];
     }
     $series[] = ['name' => $l['name'], 'values' => $vals];
 }
@@ -74,12 +82,12 @@ layout_start('Tableau de bord', 'dashboard', ['actions' => $actions]);
 
 <div class="grid4 kpis">
   <div class="kpi hero with-ic"><span class="kpi-ic"><?= icon('cash') ?></span><span>Chiffre d’affaires aujourd’hui</span><b><?= money0($todayAll['t']) ?></b>
-    <small><?= $todayAll['n'] ?> vente<?= $todayAll['n'] > 1 ? 's' : '' ?><?php if (!$scope && count($showrooms) > 1): foreach ($showrooms as $l): $t = $ca($today, $today, (int)$l['id']); ?> · <?= e($l['code']) ?> <?= money0($t['t']) ?><?php endforeach; endif; ?></small></div>
+    <small><?= $todayAll['n'] ?> vente<?= $todayAll['n'] > 1 ? 's' : '' ?><?= $todayAll['inv'] ? ' + factures ' . money0($todayAll['inv']) : '' ?><?php if (!$scope && count($showrooms) > 1): foreach ($showrooms as $l): $t = $ca($today, $today, (int)$l['id']); ?> · <?= e($l['code']) ?> <?= money0($t['t']) ?><?php endforeach; endif; ?></small></div>
   <div class="kpi with-ic"><span class="kpi-ic info"><?= icon('chart') ?></span><span>CA du mois</span><b><?= money0($month['t']) ?></b>
     <small><?php if ($delta !== null): ?><span class="<?= $delta >= 0 ? 'up' : 'down' ?>"><?= $delta >= 0 ? '▲' : '▼' ?> <?= pct(abs($delta)) ?></span> vs même période du mois dernier<?php else: ?>Pas de comparaison disponible<?php endif; ?></small></div>
   <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('receipt') ?></span><span>Ventes du mois</span><b><?= $month['n'] ?></b><small>Panier moyen <?= money0($basket) ?></small></div>
   <?php if ($role !== 'marketing'): ?>
-    <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('wallet') ?></span><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $codOwed ? 'dont ' . money0($codOwed) . ' chez les transporteurs' : 'Facilités et paiements à la livraison' ?></small></div>
+    <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('wallet') ?></span><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $codOwed ? 'dont ' . money0($codOwed) . ' chez les transporteurs' : 'Facilités, factures et paiements à la livraison' ?></small></div>
   <?php else: ?>
     <div class="kpi with-ic"><span class="kpi-ic"><?= icon('megaphone') ?></span><span>Campagnes actives</span><b><?= count($activeCampaigns) ?></b><small>Dépensé : <?= money0(array_sum(array_column($activeCampaigns, 'spent'))) ?></small></div>
   <?php endif; ?>

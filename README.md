@@ -46,7 +46,7 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 ## Les modules
 
 - **Caisse** : ouverture avec fond de caisse, recherche / scan code-barres, prix promo automatiques, prix « sur devis » saisi en caisse, remise (plafonnée à 20 % pour les responsables), paiements multiples (espèces avec monnaie à rendre, carte, chèque, virement, D17/Flouci), reste à payer (facilité), livraison avec paiement à la livraison, ticket 80 mm et facture A4, sorties de caisse, clôture avec billetage et rapport Z.
-- **Devis & factures** : saisie avec recherche client / produit, prix HT ou TTC au choix, remise par ligne ou globale, TVA par ligne, timbre fiscal, montant en lettres. Suivi des devis (brouillon, envoyé, accepté, refusé), transformation en facture en un clic, facture établie depuis une vente de caisse. Paiements partiels, relances (factures en retard, devis expirés), envoi par WhatsApp, impression / PDF A4 avec coordonnées bancaires et avertissement de garantie FR / AR. Numérotation 000019/26 continuable depuis les factures papier.
+- **Devis & factures** : saisie avec recherche client / produit, prix HT ou TTC au choix, remise par ligne ou globale, TVA par ligne, timbre fiscal, montant en lettres. Suivi des devis (brouillon, envoyé, accepté, refusé), transformation en facture en un clic, facture établie depuis une vente de caisse. Paiements partiels, relances (factures en retard, devis expirés), envoi par WhatsApp, impression / PDF A4 avec coordonnées bancaires et avertissement de garantie FR / AR. Numérotation 000019/26 continuable depuis les factures papier. Cachet et signature imprimés sur les documents. Les paiements de factures comptent dans les Finances, et ceux en espèces dans la caisse ouverte du showroom (clôture). Relance WhatsApp des factures impayées depuis Finances › À encaisser ; la caisse propose la facture officielle à la fin d’une vente.
 - **Stock** : par showroom et dépôt, entrées / sorties / transferts sur plusieurs lignes, inventaire, historique de tous les mouvements.
 - **Livraisons & transporteurs** : statut, n° de suivi, coût, argent encaissé chez les clients et encore à récupérer auprès des transporteurs.
 - **Tâches** : un tableau Kanban par équipe (Marketing, Showroom Tunis, Showroom Nabeul, Direction) ; tâches et colonnes modifiables, glisser-déposer.
@@ -58,7 +58,7 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 1. Paramètres : raison sociale, matricule fiscal, RIB, numérotation des factures, mentions de facture, fond de caisse, remise maximale (à valider avec l’expert-comptable).
 2. Stock › Inventaire : saisir les quantités de chaque site (le stock part de zéro).
 3. Produits : renseigner les prix d’achat pour obtenir les marges.
-4. Paramètres › Télécharger une sauvegarde, chaque semaine.
+4. Une copie de la base est faite automatiquement chaque jour (14 jours conservés, Paramètres › Sauvegardes) ; téléchargez-en une chaque semaine pour la garder hors du serveur.
 
 ## Utiliser l’ERP depuis les deux showrooms
 

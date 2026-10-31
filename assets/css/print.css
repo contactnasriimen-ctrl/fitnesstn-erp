@@ -121,3 +121,7 @@ body { margin: 0; font: 13px/1.4 "Segoe UI", system-ui, Arial, sans-serif; color
   .d-items tr { break-inside: avoid; }
   @page { size: A4; margin: 0; }
 }
+.d-stamp { position: relative; flex-direction: column; align-items: center; }
+.d-stamp.has-img img { max-width: 92%; max-height: 110px; object-fit: contain; margin-top: 4px; }
+.d-stamp.has-img { border-style: solid; border-color: #e1e9e7; }
+.d-stamp { justify-content: flex-start; }

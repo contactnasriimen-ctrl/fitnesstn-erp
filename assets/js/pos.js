@@ -365,6 +365,8 @@
       ch.hidden = !(change > 0); ch.textContent = 'Monnaie à rendre : ' + fmt(change);
       $('#done-ticket').href = j.ticket + '&print=1';
       $('#done-invoice').href = j.invoice;
+      const invForm = $('#done-inv-form');
+      if (invForm) { invForm.hidden = !j.has_client; $('#done-sale').value = j.id; }
       S = blank(); discEl.value = ''; renderClient(); renderMeta(); renderCart(); renderGrid();
       $('#done-dlg').showModal();
     } catch (err) {

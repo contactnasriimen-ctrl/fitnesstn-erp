@@ -16,6 +16,7 @@ if (!is_file($file)) {
     exit;
 }
 if ($route !== 'login') require_login();
+if (user() && PHP_SAPI !== 'cli') db_auto_backup();
 
 try {
     require $file;

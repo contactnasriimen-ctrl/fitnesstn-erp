@@ -161,12 +161,17 @@ function datasets(): array
     $ds['paiements'] = [
         'label' => 'Paiements & encaissements', 'icon' => 'cash', 'export' => 'payments.export', 'import' => null, 'dates' => true, 'loc' => true,
         'help' => 'Tous les encaissements (et remboursements en négatif) par mode de paiement — pour le rapprochement bancaire.',
-        'cols' => ['date' => 'Date', 'sale' => 'N° vente', 'loc' => 'Showroom', 'method' => 'Mode', 'amount' => 'Montant', 'ref' => 'Référence', 'session' => 'Session de caisse', 'user' => 'Par'],
+        'cols' => ['date' => 'Date', 'sale' => 'N° vente / facture', 'loc' => 'Showroom', 'method' => 'Mode', 'amount' => 'Montant', 'ref' => 'Référence', 'session' => 'Session de caisse', 'user' => 'Par'],
         'rows' => function (array $f) {
             $loc = export_scope($f);
             foreach (all('SELECT p.*, s.number, l.name loc, u.name un FROM payments p JOIN sales s ON s.id = p.sale_id JOIN locations l ON l.id = p.location_id LEFT JOIN users u ON u.id = p.user_id
                 WHERE date(p.created_at) BETWEEN ? AND ?' . ($loc ? ' AND p.location_id = ' . (int)$loc : '') . ' ORDER BY p.id', [$f['from'], $f['to']]) as $p) {
                 yield [$p['created_at'], $p['number'], $p['loc'], PAY_METHODS[$p['method']] ?? $p['method'], csv_money($p['amount']), $p['reference'], $p['session_id'], $p['un']];
+            }
+            // Paiements de factures établies hors caisse
+            foreach (all('SELECT dp.*, d.number, l.name loc, u.name un FROM document_payments dp JOIN documents d ON d.id = dp.document_id LEFT JOIN locations l ON l.id = dp.location_id
+                LEFT JOIN users u ON u.id = dp.user_id WHERE d.sale_id IS NULL AND dp.date BETWEEN ? AND ?' . ($loc ? ' AND dp.location_id = ' . (int)$loc : '') . ' ORDER BY dp.id', [$f['from'], $f['to']]) as $p) {
+                yield [$p['date'], 'Facture ' . $p['number'], $p['loc'] ?: 'Siège', PAY_METHODS[$p['method']] ?? $p['method'], csv_money($p['amount']), $p['reference'], $p['session_id'], $p['un']];
             }
         },
     ];

@@ -17,9 +17,26 @@ if ($a === 'backup') {
     exit;
 }
 
+if ($a === 'backup_file') {
+    // Téléchargement d'une sauvegarde automatique (nom strictement contrôlé)
+    $name = (string)get('f');
+    $file = backup_dir() . '/' . $name;
+    if (!preg_match('/^erp-\d{4}-\d{2}-\d{2}\.sqlite$/', $name) || !is_file($file)) redirect(url('settings'));
+    audit('sauvegarde automatique téléchargée', 'settings', null, $name);
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="erp-fitnesstn-' . substr($name, 4) . '"');
+    header('Content-Length: ' . filesize($file));
+    readfile($file);
+    exit;
+}
+
 if (is_post()) {
     csrf_check();
     try {
+        if ($a === 'backups') {
+            set_setting('auto_backup', post('auto_backup') ? '1' : '0');
+            flash('ok', post('auto_backup') ? 'Sauvegarde automatique activée.' : 'Sauvegarde automatique désactivée.');
+        }
         if ($a === 'general') {
             foreach (['company_name', 'company_phone', 'company_email', 'company_site', 'ticket_footer', 'invoice_note'] as $k) {
                 set_setting($k, mb_substr((string)post($k), 0, 500));
@@ -49,6 +66,16 @@ if (is_post()) {
             foreach (['facture' => 'next_invoice', 'devis' => 'next_quote'] as $t => $field) {
                 $n = (int)post($field);
                 if ($n > 0 && $n !== doc_next_number($t)) doc_set_next_number($t, $n);
+            }
+            if (!empty($_FILES['doc_stamp']['tmp_name']) && is_uploaded_file($_FILES['doc_stamp']['tmp_name'])) {
+                $info = @getimagesize($_FILES['doc_stamp']['tmp_name']);
+                $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$info['mime'] ?? ''] ?? null;
+                if (!$ext || $_FILES['doc_stamp']['size'] > 2 * 1024 * 1024) throw new RuntimeException('Cachet refusé : image PNG, JPG ou WebP de 2 Mo maximum.');
+                $fname = 'assets/img/uploads/cachet-' . bin2hex(random_bytes(6)) . '.' . $ext;
+                if (!move_uploaded_file($_FILES['doc_stamp']['tmp_name'], APP_ROOT . '/' . $fname)) throw new RuntimeException('Impossible d’enregistrer l’image du cachet.');
+                set_setting('doc_stamp', $fname);
+            } elseif (post('remove_stamp')) {
+                set_setting('doc_stamp', '');
             }
             audit('paramètres de facturation modifiés', 'settings');
             flash('ok', 'Paramètres de facturation enregistrés.');
@@ -108,7 +135,7 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
   <div class="span2 row-actions"><button class="btn primary"><?= icon('check') ?>Enregistrer</button></div>
 </form>
 
-<form method="post" action="<?= e(url('settings', ['a' => 'billing'])) ?>" class="card form-grid" id="facturation">
+<form method="post" action="<?= e(url('settings', ['a' => 'billing'])) ?>" class="card form-grid" id="facturation" enctype="multipart/form-data">
   <?= csrf_field() ?>
   <h2 class="span2">Devis & factures</h2>
   <p class="span2 hint">Ces informations apparaissent sur les devis et factures A4. <a href="<?= e(url('invoices')) ?>">Voir les factures</a></p>
@@ -125,6 +152,11 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
   <label>Transport par défaut<input name="invoice_transport" value="<?= e($s('invoice_transport')) ?>"></label>
   <label>Garantie par défaut<input name="invoice_warranty" value="<?= e($s('invoice_warranty')) ?>"></label>
   <label>Couleur des documents<input type="color" name="doc_color" value="<?= e($s('doc_color', '#145c54')) ?>"></label>
+  <div class="span2 img-field">
+    <?php $stamp = $s('doc_stamp'); if ($stamp && is_file(APP_ROOT . '/' . $stamp)): ?><img src="<?= e($stamp) ?>" alt="Cachet" class="stamp-preview"><?php endif; ?>
+    <label>Cachet et signature <small>(image PNG à fond transparent de préférence, imprimée sur les devis et factures)</small><input type="file" name="doc_stamp" accept="image/png,image/jpeg,image/webp"></label>
+    <?php if ($stamp): ?><label class="check"><input type="checkbox" name="remove_stamp" value="1"> Retirer le cachet</label><?php endif; ?>
+  </div>
   <label class="span2">Avertissement garantie (une ligne en français, une ligne en arabe)<textarea name="warranty_notice" rows="3"><?= e($s('warranty_notice')) ?></textarea></label>
   <h3 class="span2">Coordonnées bancaires (imprimées sur les documents)</h3>
   <label>Banque et agence<input name="bank_name" value="<?= e($s('bank_name')) ?>" placeholder="Ex. UBCI — Agence Mégrine"></label>
@@ -155,6 +187,18 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
     <form id="locf<?= (int)$l['id'] ?>" method="post" action="<?= e(url('settings', ['a' => 'location'])) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$l['id'] ?>"></form>
   <?php endforeach; ?>
 </section>
+<?php $backups = glob(backup_dir() . '/erp-*.sqlite') ?: []; rsort($backups); ?>
+<form method="post" action="<?= e(url('settings', ['a' => 'backups'])) ?>" class="card" id="sauvegardes">
+  <?= csrf_field() ?>
+  <div class="card-title"><h2>Sauvegardes</h2><a class="btn sm ghost" href="<?= e(url('settings', ['a' => 'backup'])) ?>"><?= icon('download') ?>Télécharger maintenant</a></div>
+  <label class="check"><input type="checkbox" name="auto_backup" value="1" <?= $s('auto_backup', '1') === '1' ? 'checked' : '' ?> onchange="this.form.submit()"> Copie automatique de la base chaque jour <small>(14 jours conservés dans le dossier protégé <code>data/backups</code>)</small></label>
+  <?php if ($backups): ?>
+    <div class="chips"><?php foreach (array_slice($backups, 0, 14) as $b): $n = basename($b); ?>
+      <a class="chip" href="<?= e(url('settings', ['a' => 'backup_file', 'f' => $n])) ?>"><?= icon('download') ?>&nbsp;<?= fdate(substr($n, 4, 10)) ?> · <?= number_format(filesize($b) / 1024, 0, ',', ' ') ?> Ko</a>
+    <?php endforeach; ?></div>
+  <?php else: ?><p class="hint">La première copie sera faite automatiquement aujourd’hui.</p><?php endif; ?>
+  <p class="hint">Conseil : téléchargez aussi une sauvegarde chaque semaine et gardez-la hors du serveur (clé USB, Google Drive…).</p>
+</form>
 <p class="hint">Version <?= APP_VERSION ?> · base de données : <code><?= e(basename(db_path())) ?></code> · pensez à télécharger une sauvegarde chaque semaine.</p>
 <?php
 layout_end();

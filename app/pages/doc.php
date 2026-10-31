@@ -24,6 +24,8 @@ $rate = fn($r) => rtrim(rtrim(number_format((float)$r, 1, ',', ''), '0'), ',') .
 $ht = fn(int $ttc, $r) => (int)round($ttc / (1 + (float)$r / 100));
 $bank = array_filter(['Banque' => setting('bank_name', ''), 'RIB' => setting('bank_rib', ''), 'IBAN' => setting('bank_iban', ''), 'BIC' => setting('bank_bic', '')]);
 $notice = trim((string)setting('warranty_notice', ''));
+$stamp = (string)setting('doc_stamp', '');
+if ($stamp !== '' && !is_file(APP_ROOT . '/' . $stamp)) $stamp = '';
 $warrantyText = function (array $it) use ($d): string {
     $m = (int)$it['warranty_months'];
     if ($m <= 0) return '';
@@ -140,7 +142,7 @@ $warrantyText = function (array $it) use ($d): string {
       <?php endif; ?>
     </div>
     <?php if ($isQuote): ?><div class="d-stamp"><span>Bon pour accord<br><small>Date, nom et signature du client</small></span></div><?php endif; ?>
-    <div class="d-stamp"><span>Cachet et signature<br><small><?= e(mb_strtoupper($legal)) ?></small></span></div>
+    <div class="d-stamp<?= $stamp ? ' has-img' : '' ?>"><span>Cachet et signature<br><small><?= e(mb_strtoupper($legal)) ?></small></span><?php if ($stamp): ?><img src="<?= e($stamp) ?>" alt=""><?php endif; ?></div>
   </div>
 
   <?php if ($notice && !$isQuote || $notice && $d['warranty']): ?>
