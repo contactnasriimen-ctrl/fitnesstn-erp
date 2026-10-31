@@ -412,6 +412,26 @@ function datasets(): array
             return 'created';
         },
     ];
+
+    foreach (['factures' => 'facture', 'devis' => 'devis'] as $key => $type) {
+        $ds[$key] = [
+            'label' => $type === 'facture' ? 'Factures' : 'Devis', 'icon' => $type === 'facture' ? 'invoice' : 'quote', 'export' => 'invoices.export', 'import' => null,
+            'dates' => true, 'loc' => true,
+            'help' => $type === 'facture' ? 'Une ligne par facture : totaux HT, TVA, timbre, encaissé et reste — pour la comptabilité.' : 'Une ligne par devis avec son statut.',
+            'cols' => ['date' => 'Date', 'number' => 'N°', 'status' => 'Statut', 'client' => 'Client', 'mf' => 'Matricule fiscal client', 'phone' => 'Téléphone',
+                'loc' => 'Showroom', 'ht' => 'Total HT', 'vat' => 'TVA', 'timbre' => 'Timbre', 'net' => 'Net TTC', 'paid' => 'Encaissé', 'rest' => 'Reste', 'due' => 'Échéance / validité'],
+            'rows' => function (array $f) use ($type) {
+                $loc = export_scope($f);
+                foreach (all('SELECT d.*, l.name loc FROM documents d LEFT JOIN locations l ON l.id = d.location_id WHERE d.type = ? AND d.date BETWEEN ? AND ?'
+                    . ($loc ? ' AND d.location_id = ' . (int)$loc : '') . ' ORDER BY d.date, d.id', [$type, $f['from'], $f['to']]) as $r) {
+                    $off = $r['status'] === 'annulee';
+                    yield [$r['date'], $r['number'], DOC_STATUS[$type][$r['status']] ?? $r['status'], $r['client_name'], $r['client_mf'], $r['client_phone'], $r['loc'] ?: 'Siège',
+                        csv_money($off ? 0 : $r['total_ht']), csv_money($off ? 0 : $r['total_vat']), csv_money($off ? 0 : $r['timbre']), csv_money($off ? 0 : $r['net']),
+                        csv_money($r['paid']), csv_money($off || $type === 'devis' ? 0 : $r['net'] - $r['paid']), $r['due_date']];
+                }
+            },
+        ];
+    }
     return $ds;
 }
 

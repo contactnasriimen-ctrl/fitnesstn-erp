@@ -73,15 +73,15 @@ layout_start('Tableau de bord', 'dashboard', ['actions' => $actions]);
 <p class="lead"><?= e($hello) ?> <?= e(explode(' ', $u['name'])[0]) ?> — <?= e(strftime_fr($today)) ?> <?= fdate($today) ?><?= $scope ? ' · ' . e(location($scope)['name']) : '' ?></p>
 
 <div class="grid4 kpis">
-  <div class="kpi hero"><span>Chiffre d’affaires aujourd’hui</span><b><?= money0($todayAll['t']) ?></b>
+  <div class="kpi hero with-ic"><span class="kpi-ic"><?= icon('cash') ?></span><span>Chiffre d’affaires aujourd’hui</span><b><?= money0($todayAll['t']) ?></b>
     <small><?= $todayAll['n'] ?> vente<?= $todayAll['n'] > 1 ? 's' : '' ?><?php if (!$scope && count($showrooms) > 1): foreach ($showrooms as $l): $t = $ca($today, $today, (int)$l['id']); ?> · <?= e($l['code']) ?> <?= money0($t['t']) ?><?php endforeach; endif; ?></small></div>
-  <div class="kpi"><span>CA du mois</span><b><?= money0($month['t']) ?></b>
+  <div class="kpi with-ic"><span class="kpi-ic info"><?= icon('chart') ?></span><span>CA du mois</span><b><?= money0($month['t']) ?></b>
     <small><?php if ($delta !== null): ?><span class="<?= $delta >= 0 ? 'up' : 'down' ?>"><?= $delta >= 0 ? '▲' : '▼' ?> <?= pct(abs($delta)) ?></span> vs même période du mois dernier<?php else: ?>Pas de comparaison disponible<?php endif; ?></small></div>
-  <div class="kpi"><span>Ventes du mois</span><b><?= $month['n'] ?></b><small>Panier moyen <?= money0($basket) ?></small></div>
+  <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('receipt') ?></span><span>Ventes du mois</span><b><?= $month['n'] ?></b><small>Panier moyen <?= money0($basket) ?></small></div>
   <?php if ($role !== 'marketing'): ?>
-    <div class="kpi"><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $codOwed ? 'dont ' . money0($codOwed) . ' chez les transporteurs' : 'Facilités et paiements à la livraison' ?></small></div>
+    <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('wallet') ?></span><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $codOwed ? 'dont ' . money0($codOwed) . ' chez les transporteurs' : 'Facilités et paiements à la livraison' ?></small></div>
   <?php else: ?>
-    <div class="kpi"><span>Campagnes actives</span><b><?= count($activeCampaigns) ?></b><small>Dépensé : <?= money0(array_sum(array_column($activeCampaigns, 'spent'))) ?></small></div>
+    <div class="kpi with-ic"><span class="kpi-ic"><?= icon('megaphone') ?></span><span>Campagnes actives</span><b><?= count($activeCampaigns) ?></b><small>Dépensé : <?= money0(array_sum(array_column($activeCampaigns, 'spent'))) ?></small></div>
   <?php endif; ?>
 </div>
 
@@ -97,11 +97,18 @@ if ($role !== 'marketing') {
 if ($negStock && can('stock.move')) $alerts[] = ['warn', "$negStock produit(s) avec un stock négatif : un inventaire est nécessaire.", url('stock', ['show' => 'negatif']), 'Voir'];
 if ($lowStock && can('stock.move')) $alerts[] = ['warn', "$lowStock produit(s) sous le stock minimum.", url('stock', ['show' => 'bas']), 'Voir'];
 if ($lateTasks) $alerts[] = ['err', "$lateTasks tâche(s) en retard.", url('tasks'), 'Voir'];
+if (can('invoices.view')) {
+    $dl = $scope ? ' AND location_id = ' . (int)$scope : '';
+    $od = one("SELECT COUNT(*) n, COALESCE(SUM(net - paid),0) t FROM documents WHERE type = 'facture' AND status IN ('emise','partielle') AND due_date < ?$dl", [$today]);
+    if ((int)$od['n']) $alerts[] = ['err', (int)$od['n'] . ' facture(s) en retard de paiement : ' . money($od['t']) . ' à encaisser.', url('invoices', ['status' => 'late', 'from' => '2000-01-01']), 'Voir'];
+    $acc = one("SELECT COUNT(*) n, COALESCE(SUM(net),0) t FROM documents WHERE type = 'devis' AND status = 'accepte'$dl");
+    if ((int)$acc['n']) $alerts[] = ['info', (int)$acc['n'] . ' devis accepté(s) à facturer (' . money0($acc['t']) . ').', url('quotes', ['status' => 'accepte', 'from' => '2000-01-01']), 'Facturer'];
+}
 ?>
 <?php if ($alerts): ?>
   <div class="alerts">
     <?php foreach ($alerts as [$tone, $msg, $href, $label]): ?>
-      <div class="alert <?= e($tone) ?>"><?= icon($tone === 'info' ? 'truck' : 'alert') ?><span><?= e($msg) ?></span><a href="<?= e($href) ?>"><?= e($label) ?></a></div>
+      <div class="alert <?= e($tone) ?>"><?= icon($tone === 'info' ? (str_contains($msg, 'devis') ? 'quote' : 'truck') : 'alert') ?><span><?= e($msg) ?></span><a href="<?= e($href) ?>"><?= e($label) ?></a></div>
     <?php endforeach; ?>
   </div>
 <?php endif; ?>

@@ -40,6 +40,14 @@ function icon(string $name, string $cls = 'ic'): string
         'eye' => '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
         'transfer' => '<path d="M4 8h14l-4-4M20 16H6l4 4"/>',
         'chart' => '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+        'quote' => '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/><path d="M9 9.5h2"/>',
+        'invoice' => '<path d="M6 2.5h9l4 4V21l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21V3.5a1 1 0 0 1 1-1z"/><path d="M14.5 2.5V7h4.5"/><path d="M8.5 11.5h7M8.5 15h7"/>',
+        'send' => '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>',
+        'chat' => '<path d="M4 20l1.4-4.2A8 8 0 1 1 8.6 19z"/><path d="M9 10.5c.5 2 2.3 3.8 4.5 4.5l1.3-1.2 1.7.8"/>',
+        'mail' => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6 8.5-6"/>',
+        'copy' => '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+        'sidebar' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 10l-2 2 2 2"/>',
+        'enter' => '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/>',
     ];
     return '<svg class="' . e($cls) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . ($p[$name] ?? '') . '</svg>';
 }
@@ -48,67 +56,143 @@ function nav_items(): array
 {
     return [
         ['dashboard', 'Tableau de bord', 'home', 'dashboard'],
+        ['-', 'Ventes', '', ''],
         ['pos', 'Caisse', 'pos', 'pos'],
         ['sales', 'Ventes', 'receipt', 'sales.view'],
+        ['quotes', 'Devis', 'quote', 'invoices.view'],
+        ['invoices', 'Factures', 'invoice', 'invoices.view'],
         ['clients', 'Clients', 'users', 'clients.view'],
+        ['-', 'Catalogue & logistique', '', ''],
         ['products', 'Produits', 'box', 'products.view'],
         ['stock', 'Stock', 'stock', 'stock.view'],
         ['deliveries', 'Livraisons', 'truck', 'deliveries.view'],
+        ['-', 'Équipe & marketing', '', ''],
         ['tasks', 'Tâches', 'tasks', 'tasks'],
         ['marketing', 'Marketing', 'megaphone', 'campaigns.view'],
+        ['-', 'Gestion', '', ''],
         ['finances', 'Finances', 'wallet', 'finance.view'],
         ['io', 'Import / Export CSV', 'swap', 'io'],
-        ['-', 'Administration', '', 'users'],
+        ['-', 'Administration', '', ''],
         ['users', 'Utilisateurs', 'usercog', 'users'],
         ['settings', 'Paramètres', 'settings', 'settings'],
         ['audit', 'Journal d’activité', 'log', 'audit'],
     ];
 }
 
+/** Menu groupé : un intertitre n'apparaît que si au moins une entrée de son groupe est accessible. */
+function nav_groups(): array
+{
+    $groups = [['', []]];
+    foreach (nav_items() as [$r, $label, $ic, $perm]) {
+        if ($r === '-') {
+            $groups[] = [$label, []];
+            continue;
+        }
+        if (can($perm)) $groups[count($groups) - 1][1][] = [$r, $label, $ic];
+    }
+    return array_values(array_filter($groups, fn($g) => $g[1]));
+}
+
+/** Créations rapides du bouton « Nouveau » et de la recherche (Ctrl+K). */
+function quick_actions(): array
+{
+    $a = [];
+    if (can('pos')) $a[] = ['Vente en caisse', url('pos'), 'pos'];
+    if (can('invoices.edit')) {
+        $a[] = ['Devis', url('quotes', ['a' => 'edit']), 'quote'];
+        $a[] = ['Facture', url('invoices', ['a' => 'edit']), 'invoice'];
+    }
+    if (can('clients.edit')) $a[] = ['Client', url('clients', ['a' => 'edit']), 'users'];
+    if (can('expenses.edit')) $a[] = ['Dépense', url('finances', ['a' => 'expenses']), 'wallet'];
+    if (can('tasks')) $a[] = ['Tâche', url('tasks'), 'tasks'];
+    return $a;
+}
+
 function layout_start(string $title, string $active, array $opts = []): void
 {
     $u = user();
+    $GLOBALS['ftn_active'] = $active;
     $company = setting('company_name', 'FitnessTN');
     $bodyClass = $opts['body'] ?? '';
     echo '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
-        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        . '<meta name="theme-color" content="#0a1f4d">'
         . '<title>' . e($title) . ' · ERP ' . e($company) . '</title>'
         . '<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">'
         . '<link rel="stylesheet" href="assets/css/app.css?v=' . APP_VERSION . filemtime(APP_ROOT . '/assets/css/app.css') . '">'
         . '<meta name="csrf" content="' . e(csrf_token()) . '">'
+        // Menu replié : appliqué avant l'affichage pour éviter un saut de mise en page.
+        . '<script>try{if(localStorage.getItem("ftn-side")==="mini")document.documentElement.classList.add("side-mini")}catch(e){}</script>'
         . '</head><body class="' . e($bodyClass) . '">';
     if (!$u) {
         echo '<main class="guest">';
         return;
     }
-    echo '<div class="shell"><aside class="side" id="side"><a class="brand" href="' . e(url('dashboard')) . '">'
-        . '<span class="brand-mark"><img src="assets/img/logo.svg" alt=""></span><span><b>' . e($company) . '</b><small>ERP · gestion</small></span></a><nav>';
-    foreach (nav_items() as [$r, $label, $ic, $perm]) {
-        if (!can($perm)) continue;
-        if ($r === '-') {
-            echo '<div class="nav-sep">' . e($label) . '</div>';
-            continue;
+    $groups = nav_groups();
+    echo '<div class="shell"><aside class="side" id="side"><div class="side-head"><a class="brand" href="' . e(url('dashboard')) . '">'
+        . '<span class="brand-mark"><img src="assets/img/logo.svg" alt=""></span><span class="brand-txt"><b>' . e($company) . '</b><small>ERP · gestion</small></span></a>'
+        . '<button class="icon-btn side-collapse" type="button" data-side-mini title="Replier le menu" aria-label="Replier le menu">' . icon('sidebar') . '</button></div><nav>';
+    foreach ($groups as [$glabel, $links]) {
+        if ($glabel !== '') echo '<div class="nav-sep"><span>' . e($glabel) . '</span></div>';
+        foreach ($links as [$r, $label, $ic]) {
+            echo '<a class="' . ($active === $r ? 'on' : '') . '" href="' . e(url($r)) . '" title="' . e($label) . '"' . ($active === $r ? ' aria-current="page"' : '') . '>' . icon($ic) . '<span>' . e($label) . '</span></a>';
         }
-        echo '<a class="' . ($active === $r ? 'on' : '') . '" href="' . e(url($r)) . '">' . icon($ic) . '<span>' . e($label) . '</span></a>';
     }
     $loc = $u['location_id'] ? location((int)$u['location_id']) : null;
-    echo '</nav><div class="me"><a class="me-link" href="' . e(url('account')) . '"><span class="avatar">' . e(initials($u['name'])) . '</span>'
-        . '<span><b>' . e($u['name']) . '</b><small>' . e(ROLES[$u['role']] ?? $u['role']) . ($loc ? ' · ' . e($loc['name']) : '') . '</small></span></a>'
-        . '<form method="post" action="' . e(url('logout')) . '">' . csrf_field() . '<button class="icon-btn" title="Se déconnecter">' . icon('logout') . '</button></form></div></aside>'
-        . '<div class="main"><header class="top"><button class="icon-btn burger" type="button" data-toggle-side aria-label="Menu">' . icon('menu') . '</button>'
-        . '<h1>' . e($title) . '</h1><div class="top-actions">' . ($opts['actions'] ?? '') . '</div></header>';
+    echo '</nav><div class="me"><a class="me-link" href="' . e(url('account')) . '" title="Mon compte"><span class="avatar">' . e(initials($u['name'])) . '</span>'
+        . '<span class="me-txt"><b>' . e($u['name']) . '</b><small>' . e(ROLES[$u['role']] ?? $u['role']) . ($loc ? ' · ' . e($loc['name']) : '') . '</small></span></a>'
+        . '<form method="post" action="' . e(url('logout')) . '">' . csrf_field() . '<button class="icon-btn" title="Se déconnecter" aria-label="Se déconnecter">' . icon('logout') . '</button></form></div></aside>';
+
+    // Barre du haut : titre, recherche globale, création rapide, actions de la page
+    $quick = quick_actions();
+    $palette = [];
+    foreach ($groups as [$glabel, $links]) foreach ($links as [$r, $label, $ic]) $palette[] = ['t' => $label, 'h' => url($r), 'i' => $ic, 'g' => 'Aller à'];
+    foreach ($quick as [$label, $href, $ic]) $palette[] = ['t' => 'Nouveau : ' . mb_strtolower($label), 'h' => $href, 'i' => 'plus', 'g' => 'Créer'];
+    echo '<div class="main"><header class="top"><button class="icon-btn burger" type="button" data-toggle-side aria-label="Menu">' . icon('menu') . '</button>'
+        . '<h1>' . e($title) . '</h1>'
+        . '<button class="search-btn" type="button" data-palette-open aria-label="Rechercher">' . icon('search') . '<span>Rechercher…</span><kbd>Ctrl K</kbd></button>';
+    if ($quick) {
+        echo '<details class="menu new-menu"><summary class="btn sm">' . icon('plus') . '<span>Nouveau</span></summary><div class="menu-pop">';
+        foreach ($quick as [$label, $href, $ic]) echo '<a href="' . e($href) . '">' . icon($ic) . e($label) . '</a>';
+        echo '</div></details>';
+    }
+    echo '<div class="top-actions">' . ($opts['actions'] ?? '') . '</div></header>';
+    echo '<dialog class="palette" id="palette" aria-label="Recherche"><div class="pal-box"><div class="pal-in">' . icon('search') . '<input type="search" placeholder="Rechercher un client, un produit, un devis, une facture, une page…" autocomplete="off" data-palette-q><kbd>Échap</kbd></div>'
+        . '<div class="pal-list" data-palette-list role="listbox"></div><div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> naviguer</span><span><kbd>Entrée</kbd> ouvrir</span></div></div>'
+        . '<div hidden>' . implode('', array_map(fn($i) => '<span data-icon-src="' . $i . '">' . icon($i) . '</span>',
+            array_unique(array_merge(array_column($palette, 'i'), ['users', 'quote', 'invoice', 'receipt', 'box'])))) . '</div>'
+        . '<script type="application/json" data-palette-json>' . json_encode(['items' => $palette, 'search' => url('search')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) . '</script></dialog>';
     if (!empty($u['initial_password']) && $active !== 'account') {
         echo '<div class="banner">' . icon('lock') . '<span>Vous utilisez encore le mot de passe initial. <a href="' . e(url('account')) . '">Choisissez votre propre mot de passe</a>.</span></div>';
     }
     echo '<div class="content' . (!empty($opts['wide']) ? ' wide' : '') . '">';
-    foreach (flashes() as [$type, $msg]) {
-        echo '<div class="flash ' . e($type) . '">' . icon($type === 'ok' ? 'check' : 'alert') . '<span>' . e($msg) . '</span></div>';
+    $fl = flashes();
+    if ($fl) {
+        echo '<div class="toasts" aria-live="polite">';
+        foreach ($fl as [$type, $msg]) {
+            echo '<div class="flash ' . e($type) . '" role="' . ($type === 'err' ? 'alert' : 'status') . '">' . icon($type === 'ok' ? 'check' : 'alert') . '<span>' . e($msg) . '</span>'
+                . '<button type="button" class="icon-btn xs" data-dismiss aria-label="Fermer">' . icon('x') . '</button></div>';
+        }
+        echo '</div>';
     }
+}
+
+/** Barre d'onglets en bas de l'écran sur mobile. */
+function mobile_nav(string $active): string
+{
+    $tabs = array_filter([
+        ['dashboard', 'Accueil', 'home', 'dashboard'], ['pos', 'Caisse', 'pos', 'pos'], ['invoices', 'Factures', 'invoice', 'invoices.view'],
+        ['sales', 'Ventes', 'receipt', 'sales.view'], ['tasks', 'Tâches', 'tasks', 'tasks'],
+    ], fn($t) => can($t[3]));
+    $tabs = array_slice(array_values($tabs), 0, 4);
+    $h = '<nav class="mnav" aria-label="Navigation rapide">';
+    foreach ($tabs as [$r, $label, $ic]) $h .= '<a class="' . ($active === $r ? 'on' : '') . '" href="' . e(url($r)) . '">' . icon($ic) . '<span>' . e($label) . '</span></a>';
+    return $h . '<button type="button" data-toggle-side>' . icon('menu') . '<span>Menu</span></button></nav>';
 }
 
 function layout_end(array $scripts = []): void
 {
-    if (user()) echo '</div></div></div>';
+    if (user()) echo '</div>' . mobile_nav((string)($GLOBALS['ftn_active'] ?? '')) . '</div></div>';
     else echo '</main>';
     $v = APP_VERSION . filemtime(APP_ROOT . '/assets/js/app.js');
     echo '<script src="assets/js/app.js?v=' . $v . '"></script>';

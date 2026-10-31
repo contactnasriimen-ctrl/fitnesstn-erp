@@ -24,7 +24,7 @@ if (is_post()) {
         $src = (string)post('source');
         $data = [
             'name' => $name, 'phone' => $phone, 'phone2' => normalize_phone((string)post('phone2')), 'email' => (string)post('email'),
-            'gouvernorat' => (string)post('gouvernorat'), 'city' => (string)post('city'), 'address' => (string)post('address'),
+            'gouvernorat' => (string)post('gouvernorat'), 'city' => (string)post('city'), 'address' => (string)post('address'), 'mf' => mb_substr((string)post('mf'), 0, 60),
             'source' => isset(SOURCES[$src]) ? $src : '', 'notes' => (string)post('notes'), 'updated_at' => now(),
         ];
         if ($id) update('clients', $data, 'id = ?', [$id]);
@@ -39,7 +39,7 @@ if (is_post()) {
 
 if ($a === 'edit') {
     require_perm('clients.edit');
-    $c = (int)get('id') ? one('SELECT * FROM clients WHERE id = ?', [(int)get('id')]) : ['id' => 0, 'name' => '', 'phone' => '', 'phone2' => '', 'email' => '', 'gouvernorat' => '', 'city' => '', 'address' => '', 'source' => '', 'notes' => ''];
+    $c = (int)get('id') ? one('SELECT * FROM clients WHERE id = ?', [(int)get('id')]) : ['id' => 0, 'name' => '', 'phone' => '', 'phone2' => '', 'email' => '', 'gouvernorat' => '', 'city' => '', 'address' => '', 'source' => '', 'notes' => '', 'mf' => ''];
     if (!$c) redirect(url('clients'));
     layout_start($c['id'] ? 'Modifier · ' . $c['name'] : 'Nouveau client', 'clients');
     ?>
@@ -50,6 +50,7 @@ if ($a === 'edit') {
       <label>Téléphone<input name="phone" value="<?= e($c['phone']) ?>" inputmode="tel"></label>
       <label>Téléphone 2<input name="phone2" value="<?= e($c['phone2']) ?>" inputmode="tel"></label>
       <label>E-mail<input type="email" name="email" value="<?= e($c['email']) ?>"></label>
+      <label>Matricule fiscal <small>(clients professionnels, pour les factures)</small><input name="mf" value="<?= e($c['mf'] ?? '') ?>" placeholder="1234567/A/M/000"></label>
       <label>Origine<select name="source"><?= opt(SOURCES, $c['source'], true) ?></select></label>
       <label>Gouvernorat<select name="gouvernorat"><?= opt(array_combine(GOUVERNORATS, GOUVERNORATS), $c['gouvernorat'], true) ?></select></label>
       <label>Ville / délégation<input name="city" value="<?= e($c['city']) ?>"></label>
@@ -70,7 +71,10 @@ if ($a === 'view') {
         WHERE s.client_id = ? AND s.status <> 'annulee' AND si.product_id IS NOT NULL ORDER BY s.id DESC", [$c['id']]);
     $sum = array_sum(array_map(fn($s) => $s['status'] !== 'annulee' ? (int)$s['total'] : 0, $sales));
     $rest = array_sum(array_map(fn($s) => $s['status'] === 'partielle' ? (int)$s['total'] - (int)$s['paid'] : 0, $sales));
-    $actions = can('clients.edit') ? '<a class="btn sm primary" href="' . e(url('clients', ['a' => 'edit', 'id' => $c['id']])) . '">' . icon('edit') . 'Modifier</a>' : '';
+    $docs = can('invoices.view') ? all('SELECT * FROM documents WHERE client_id = ?' . ($scope ? ' AND location_id = ' . (int)$scope : '') . ' ORDER BY date DESC, id DESC', [$c['id']]) : [];
+    $actions = (can('invoices.edit') ? '<a class="btn sm" href="' . e(url('quotes', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('quote') . 'Devis</a>'
+            . '<a class="btn sm" href="' . e(url('invoices', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('invoice') . 'Facture</a>' : '')
+        . (can('clients.edit') ? '<a class="btn sm primary" href="' . e(url('clients', ['a' => 'edit', 'id' => $c['id']])) . '">' . icon('edit') . 'Modifier</a>' : '');
     layout_start($c['name'], 'clients', ['actions' => $actions]);
     ?>
     <p><a class="back" href="<?= e(url('clients')) ?>"><?= icon('left') ?>Clients</a></p>
@@ -84,6 +88,7 @@ if ($a === 'view') {
         <dl class="kv">
           <dt>Téléphone</dt><dd><?= $c['phone'] ? '<a href="tel:' . e($c['phone']) . '">' . e($c['phone']) . '</a> · <a href="https://wa.me/216' . e($c['phone']) . '" target="_blank" rel="noopener">WhatsApp</a>' : '—' ?><?= $c['phone2'] ? ' / ' . e($c['phone2']) : '' ?></dd>
           <dt>E-mail</dt><dd><?= e($c['email'] ?: '—') ?></dd>
+          <?php if (!empty($c['mf'])): ?><dt>Matricule fiscal</dt><dd><?= e($c['mf']) ?></dd><?php endif; ?>
           <dt>Adresse</dt><dd><?= e(trim($c['address'] . ', ' . $c['city'] . ', ' . $c['gouvernorat'], ', ') ?: '—') ?></dd>
           <?php if ($c['notes']): ?><dt>Notes</dt><dd><?= nl2br(e($c['notes'])) ?></dd><?php endif; ?>
         </dl></section>
@@ -102,7 +107,16 @@ if ($a === 'view') {
         <?php endforeach; ?>
         <?php if (!$sales): ?><tr><td class="empty-row">Aucune vente.</td></tr><?php endif; ?>
       </table></section>
-    <?php if (is_admin() && !$sales): ?>
+    <?php if ($docs): ?>
+      <section class="card flush"><div class="card-head"><b>Devis & factures</b></div>
+        <table class="tbl hover">
+          <?php foreach ($docs as $dc): ?>
+            <tr data-href="<?= e(url(doc_route($dc['type']), ['a' => 'view', 'id' => $dc['id']])) ?>"><td><?= icon($dc['type'] === 'devis' ? 'quote' : 'invoice') ?></td><td><b><?= e($dc['number']) ?></b><br><small class="muted"><?= e(DOC_TYPES[$dc['type']]) ?></small></td>
+              <td><?= fdate($dc['date']) ?></td><td class="num"><?= money($dc['net']) ?></td><td><?= doc_badge($dc) ?></td></tr>
+          <?php endforeach; ?>
+        </table></section>
+    <?php endif; ?>
+    <?php if (is_admin() && !$sales && !$docs): ?>
       <form method="post" action="<?= e(url('clients', ['a' => 'delete'])) ?>" class="danger-inline" onsubmit="return confirm('Supprimer ce client ?')">
         <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$c['id'] ?>"><button class="btn ghost danger sm"><?= icon('trash') ?>Supprimer</button>
       </form>

@@ -17,7 +17,7 @@ const PERMS = [
         'stock.view', 'stock.move', 'stock.export', 'deliveries.view', 'deliveries.edit', 'deliveries.export',
         'deliveries.import', 'carriers.view', 'tasks', 'finance.view', 'expenses.edit', 'expenses.export',
         'expenses.import', 'sessions.export', 'payments.export', 'clients.view', 'clients.edit', 'clients.export', 'clients.import',
-        'tasks.export', 'tasks.import', 'campaigns.view', 'io',
+        'tasks.export', 'tasks.import', 'campaigns.view', 'io', 'invoices.view', 'invoices.edit', 'invoices.export',
     ],
     'marketing' => [
         'dashboard', 'products.view', 'products.export', 'stock.view', 'stock.export', 'tasks', 'tasks.export', 'tasks.import',

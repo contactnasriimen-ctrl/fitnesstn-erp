@@ -15,9 +15,102 @@
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-toggle-side]');
     const side = document.getElementById('side');
-    if (t && side) { side.classList.toggle('open'); return; }
-    if (side && side.classList.contains('open') && !e.target.closest('#side')) side.classList.remove('open');
+    if (t && side) { side.classList.toggle('open'); document.body.classList.toggle('side-open', side.classList.contains('open')); return; }
+    if (side && side.classList.contains('open') && !e.target.closest('#side')) { side.classList.remove('open'); document.body.classList.remove('side-open'); }
   });
+
+  // Menu replié (bureau), mémorisé dans le navigateur
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-side-mini]')) return;
+    const mini = document.documentElement.classList.toggle('side-mini');
+    try { localStorage.setItem('ftn-side', mini ? 'mini' : ''); } catch (err) { /* stockage indisponible */ }
+  });
+
+  // Menus déroulants (<details class="menu">) : fermeture au clic extérieur ou Échap
+  document.addEventListener('click', (e) => {
+    $$('details.menu[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.menu-pop a')) d.open = false; });
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $$('details.menu[open]').forEach((d) => { d.open = false; }); });
+
+  // Messages : fermeture manuelle, disparition automatique des confirmations
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dismiss]');
+    if (b) b.closest('.flash').remove();
+  });
+  $$('.toasts .flash.ok').forEach((f) => setTimeout(() => { f.classList.add('out'); setTimeout(() => f.remove(), 300); }, 5000));
+
+  // Recherche globale (Ctrl+K ou /)
+  const pal = document.getElementById('palette');
+  if (pal) {
+    const P = JSON.parse(pal.querySelector('[data-palette-json]').textContent);
+    const input = pal.querySelector('[data-palette-q]');
+    const list = pal.querySelector('[data-palette-list]');
+    const icons = {};
+    pal.querySelectorAll('[data-icon-src]').forEach((el) => { icons[el.dataset.iconSrc] = el.innerHTML; });
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let results = [];
+    let active = 0;
+    let timer = null;
+    let seq = 0;
+    const paint = () => {
+      if (!results.length) { list.innerHTML = '<p class="pal-empty">Aucun résultat. Essayez un nom, un téléphone, un numéro de facture…</p>'; return; }
+      let g = '';
+      list.innerHTML = results.map((r, i) => {
+        const head = r.g !== g ? `<div class="pal-g">${esc(r.g)}</div>` : '';
+        g = r.g;
+        return head + `<a href="${esc(r.h)}" class="pal-item${i === active ? ' on' : ''}" data-i="${i}" role="option"><span class="pal-ic">${icons[r.i] || ''}</span>`
+          + `<span class="pal-t">${esc(r.t)}${r.s ? `<small>${esc(r.s)}</small>` : ''}</span><span class="pal-enter">↵</span></a>`;
+      }).join('');
+      list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    };
+    const local = (q) => {
+      const w = norm(q).split(/\s+/).filter(Boolean);
+      return P.items.filter((it) => w.every((x) => norm(it.t).includes(x)));
+    };
+    const run = () => {
+      const q = input.value.trim();
+      results = q ? local(q) : P.items.slice();
+      active = 0;
+      paint();
+      clearTimeout(timer);
+      if (q.length < 2) return;
+      const my = ++seq;
+      timer = setTimeout(async () => {
+        try {
+          const r = await fetch(P.search + '&q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } });
+          const j = await r.json();
+          if (my !== seq) return;
+          results = local(q).concat(j.results || []);
+          active = 0;
+          paint();
+        } catch (err) { /* hors ligne : résultats locaux seulement */ }
+      }, 160);
+    };
+    const open = () => { if (!pal.open) { pal.showModal(); input.value = ''; run(); input.focus(); } };
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); }
+      else if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable]') && !document.querySelector('dialog[open]')) { e.preventDefault(); open(); }
+    });
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-palette-open]')) open(); });
+    pal.addEventListener('click', (e) => { if (e.target === pal) pal.close(); });
+    list.addEventListener('mousemove', (e) => {
+      const a = e.target.closest('[data-i]');
+      if (a && +a.dataset.i !== active) { list.querySelector('.on')?.classList.remove('on'); a.classList.add('on'); active = +a.dataset.i; }
+    });
+    input.addEventListener('input', run);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!results.length) return;
+        active = (active + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length;
+        paint();
+      } else if (e.key === 'Enter' && results[active]) {
+        e.preventDefault();
+        location.href = results[active].h;
+      }
+    });
+  }
 
   // Lignes de tableau cliquables
   document.addEventListener('click', (e) => {

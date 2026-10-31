@@ -240,6 +240,75 @@ async function main() {
   r = await admin.follow('index.php?r=io&a=export&ds=taches&board=' + boardId);
   ok(r.text.includes('Appeler Mme Samia'), 'export tâches du tableau');
 
+  console.log('Devis & factures');
+  const stockOf = async (pid) => {
+    const t = (await admin.follow('index.php?r=products&a=view&id=' + pid)).text;
+    const m = t.match(/Showroom Tunis\s*<b>(-?\d+)<\/b>/);
+    return m ? +m[1] : null;
+  };
+  const docId = (t) => +((t.match(/name="id" value="(\d+)"/) || [])[1] || 0);
+  for (const p of ['quotes', 'invoices', 'quotes&a=edit', 'invoices&a=edit']) {
+    r = await admin.follow('index.php?r=' + p);
+    ok(r.status === 200 && clean(r.text), `GET ${p}`);
+  }
+  r = await admin.form('index.php?r=quotes&a=save', {
+    'client[name]': 'AMIR', 'client[phone]': '28 596 986', 'client[address]': 'Ariana 56, rue de l’Industrie', 'client[mf]': '1234567/A/M/000',
+    date: '2026-10-17', due_date: '2026-11-01', location_id: '1', timbre: '1', discount: '',
+    'items[0][product_id]': '', 'items[0][label]': 'Machine musculation', 'items[0][qty]': '1', 'items[0][unit_price]': '1600', 'items[0][discount_pct]': '', 'items[0][vat_rate]': '19',
+    'items[1][product_id]': String(corde.id), 'items[1][label]': 'CORDE A SAUTER SPEED', 'items[1][qty]': '2', 'items[1][unit_price]': '49', 'items[1][discount_pct]': '10', 'items[1][vat_rate]': '19',
+    terms: 'Paiement comptant à la livraison', transport: 'Gratuit', warranty: 'Selon le produit',
+  });
+  ok(clean(r.text) && /Devis DV-000001\/\d\d/.test(r.text), 'devis créé avec le numéro DV-000001/aa');
+  // 1600 + 2 × 49 × 0,9 = 1688,200 TTC, + timbre 1 = 1689,200
+  ok(r.text.includes('1 689,200'), 'net à payer 1 689,200 DT (remise de ligne + timbre)');
+  const qid = docId(r.text);
+  r = await admin.follow('index.php?r=doc&id=' + qid);
+  ok(clean(r.text) && r.text.includes('DEVIS') && r.text.includes('Mille six cent quatre-vingt-neuf dinars et deux cents millimes'), 'devis A4 avec montant en lettres');
+  ok(r.text.includes('1234567/A/M/000') && r.text.includes('Timbre fiscal'), 'devis A4 : MF du client et timbre fiscal');
+  r = await admin.form('index.php?r=quotes&a=status', { id: String(qid), status: 'accepte' });
+  ok(r.text.includes('Statut mis à jour : Accepté'), 'devis marqué accepté');
+  const before = await stockOf(corde.id);
+  r = await admin.form('index.php?r=quotes&a=convert', { id: String(qid), stock: '1' });
+  ok(clean(r.text) && /Facture 000001\/\d\d/.test(r.text), 'devis transformé en facture 000001/aa');
+  const invId = docId(r.text);
+  const after = await stockOf(corde.id);
+  ok(before !== null && after === before - 2, `stock sorti à la facturation (${before} → ${after})`);
+  r = await admin.follow('index.php?r=quotes&a=view&id=' + qid);
+  ok(r.text.includes('Facturé'), 'devis passé au statut « Facturé »');
+  r = await admin.form('index.php?r=invoices&a=pay', { id: String(invId), amount: '689,200', method: 'virement', reference: 'VIR 1', date: '2026-10-18' });
+  ok(r.text.includes('Paiement partiel'), 'acompte : facture en paiement partiel');
+  r = await admin.form('index.php?r=invoices&a=pay', { id: String(invId), amount: '2000', method: 'especes', reference: '' });
+  ok(r.text.includes('Montant invalide'), 'paiement supérieur au reste refusé');
+  r = await admin.form('index.php?r=invoices&a=pay', { id: String(invId), amount: '1000', method: 'especes', reference: '' });
+  ok(r.text.includes('Payée'), 'solde : facture payée');
+  r = await admin.follow('index.php?r=doc&id=' + invId);
+  ok(r.text.includes('FACTURE') && r.text.includes('Déjà réglé'), 'facture A4 : déjà réglé');
+  r = await admin.form('index.php?r=invoices&a=cancel', { id: String(invId), reason: 'Test' });
+  ok(r.text.includes('Facture annulée') && (await stockOf(corde.id)) === before, 'facture annulée : stock remis');
+  r = await admin.form('index.php?r=invoices&a=from_sale', { sale_id: String(s2.id) });
+  ok(clean(r.text) && /Facture 000002\/\d\d/.test(r.text) && r.text.includes('Samia Ben Ali'), 'facture établie depuis une vente de caisse');
+  // Vente soldée plus haut : acompte carte 3 000 + versement espèces 1 000 + contre-remboursement
+  ok(r.text.includes('Payée') && r.text.includes('3 000,000') && r.text.includes('Contre-remboursement'), 'paiements de la vente repris sur la facture (soldée)');
+  r = await admin.follow('index.php?r=sales&a=view&id=' + s2.id);
+  ok(/Facture 000002\//.test(r.text), 'la vente renvoie vers sa facture');
+  r = await admin.form('index.php?r=invoices&a=save', { 'client[name]': '', date: '2026-10-20', 'items[0][label]': 'Ligne X', 'items[0][qty]': '1', 'items[0][unit_price]': '10', 'items[0][vat_rate]': '19' });
+  ok(r.text.includes('nom du client est obligatoire') && r.text.includes('Ligne X'), 'erreur de saisie : message affiché, saisie conservée');
+  r = await admin.req('index.php?r=search&q=AMIR');
+  ok(r.text.includes('DV-000001') && r.text.includes('Clients'), 'recherche globale : client et devis trouvés');
+  r = await admin.follow('index.php?r=io&a=export&ds=factures&from=2026-01-01&to=2026-12-31');
+  ok(r.text.includes('000002/') && r.text.includes('Matricule fiscal'), 'export CSV des factures');
+  r = await tunis.follow('index.php?r=invoices');
+  ok(r.status === 200 && r.text.includes('000002/'), 'showroom Tunis : factures de son showroom visibles');
+  r = await mk.follow('index.php?r=invoices');
+  ok(r.status === 403, 'marketing : pas d’accès aux factures');
+  const billing = { company_legal_name: 'STE TEST', company_address: 'Ariana', company_mf: '1111111/A/M/000', next_invoice: '19', next_quote: '2', quote_prefix: 'DV-', invoice_prefix: '',
+    quote_validity_days: '15', invoice_due_days: '0', doc_color: '#145c54', invoice_terms: 'x', invoice_transport: 'y', invoice_warranty: 'z', warranty_notice: 'n',
+    bank_name: 'UBCI', bank_rib: '1', bank_iban: '2', bank_bic: '3' };
+  r = await admin.form('index.php?r=settings&a=billing', billing);
+  ok(r.text.includes('Paramètres de facturation enregistrés') && r.text.includes('name="next_invoice" type="number" min="1" value="19"'), 'numérotation : prochaine facture n° 19');
+  r = await admin.form('index.php?r=settings&a=billing', { ...billing, next_invoice: '2' });
+  ok(r.text.includes('déjà utilisé'), 'numéro de facture déjà utilisé refusé');
+
   console.log('Pages finales sans erreur');
   for (const p of ['dashboard', 'finances', 'finances&a=receivables', 'marketing&a=stats', 'audit', 'clients&a=view&id=1']) {
     r = await admin.follow('index.php?r=' + p);

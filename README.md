@@ -1,6 +1,6 @@
 # ERP FitnessTN
 
-Caisse, ventes, stock multi-sites, livraisons & transporteurs, tâches (Kanban), marketing, finances et import/export CSV — pour les showrooms de Tunis et de Nabeul.
+Caisse, ventes, devis & factures, stock multi-sites, livraisons & transporteurs, tâches (Kanban), marketing, finances et import/export CSV — pour les showrooms de Tunis et de Nabeul.
 
 **▶ Démo en ligne : https://contactnasriimen-ctrl.github.io/fitnesstn-erp/** — comptes `admin`, `tunis`, `nabeul`, `marketing`, mot de passe `demo2026`.
 La démo fait tourner ce code PHP dans le navigateur (PHP 8.3 WebAssembly) : les essais restent dans le navigateur de chacun. Pour l’utilisation réelle à plusieurs, installez l’ERP sur un hébergement PHP (voir plus bas).
@@ -46,15 +46,16 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 ## Les modules
 
 - **Caisse** : ouverture avec fond de caisse, recherche / scan code-barres, prix promo automatiques, prix « sur devis » saisi en caisse, remise (plafonnée à 20 % pour les responsables), paiements multiples (espèces avec monnaie à rendre, carte, chèque, virement, D17/Flouci), reste à payer (facilité), livraison avec paiement à la livraison, ticket 80 mm et facture A4, sorties de caisse, clôture avec billetage et rapport Z.
+- **Devis & factures** : saisie avec recherche client / produit, prix HT ou TTC au choix, remise par ligne ou globale, TVA par ligne, timbre fiscal, montant en lettres. Suivi des devis (brouillon, envoyé, accepté, refusé), transformation en facture en un clic, facture établie depuis une vente de caisse. Paiements partiels, relances (factures en retard, devis expirés), envoi par WhatsApp, impression / PDF A4 avec coordonnées bancaires et avertissement de garantie FR / AR. Numérotation 000019/26 continuable depuis les factures papier.
 - **Stock** : par showroom et dépôt, entrées / sorties / transferts sur plusieurs lignes, inventaire, historique de tous les mouvements.
 - **Livraisons & transporteurs** : statut, n° de suivi, coût, argent encaissé chez les clients et encore à récupérer auprès des transporteurs.
 - **Tâches** : un tableau Kanban par équipe (Marketing, Showroom Tunis, Showroom Nabeul, Direction) ; tâches et colonnes modifiables, glisser-déposer.
 - **Finances** : synthèse (CA, encaissements, dépenses, marge, résultat estimé), clôtures de caisse, dépenses, reste à encaisser.
-- **Import / Export CSV** : 13 jeux de données, ouverts directement par Excel. Chaque import montre un aperçu avant d’enregistrer. L’export WooCommerce du site est reconnu tel quel.
+- **Import / Export CSV** : 15 jeux de données, ouverts directement par Excel. Chaque import montre un aperçu avant d’enregistrer. L’export WooCommerce du site est reconnu tel quel.
 
 ## Avant l’utilisation réelle
 
-1. Paramètres : matricule fiscal, mentions de facture, fond de caisse, remise maximale (à valider avec l’expert-comptable).
+1. Paramètres : raison sociale, matricule fiscal, RIB, numérotation des factures, mentions de facture, fond de caisse, remise maximale (à valider avec l’expert-comptable).
 2. Stock › Inventaire : saisir les quantités de chaque site (le stock part de zéro).
 3. Produits : renseigner les prix d’achat pour obtenir les marges.
 4. Paramètres › Télécharger une sauvegarde, chaque semaine.

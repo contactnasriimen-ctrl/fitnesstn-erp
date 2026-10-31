@@ -63,4 +63,33 @@ foreach ([['loyer', 'Loyer showroom Tunis', 1800000, 1], ['loyer', 'Loyer showro
 q('UPDATE products SET cost = CAST(price * 0.62 AS INTEGER) WHERE price > 0');
 q("UPDATE tasks SET assignee_id = 2, due_date = date('now', '+2 days') WHERE board_id = 2");
 q("UPDATE tasks SET assignee_id = 4, due_date = date('now', '-1 days') WHERE board_id = 1 AND priority = 'haute'");
-echo "Démo prête : " . val('SELECT COUNT(*) FROM sales') . " ventes\n";
+
+// Devis & factures fictifs (clients professionnels)
+foreach (['company_legal_name' => 'STE DÉMO FITNESS', 'company_address' => 'Avenue de la Démo, Ariana 2080', 'bank_name' => 'Banque Démo — Agence Ariana',
+    'bank_rib' => '00 000 0000000000 000 00', 'bank_iban' => 'TN00 0000 0000 0000 0000 0000', 'bank_bic' => 'DEMOTNTT'] as $k => $v) set_setting($k, $v);
+$gym = ['name' => 'Salle Atlas Gym', 'phone' => '71 000 111', 'address' => 'Rue du Lac, Les Berges du Lac, Tunis', 'mf' => '0000001/B/M/000'];
+$hotel = ['name' => 'Hôtel Démo Hammamet', 'phone' => '72 000 222', 'address' => 'Zone touristique, Hammamet', 'mf' => '0000002/C/N/000'];
+$line = fn(array $p, int $q, float $disc = 0) => ['product_id' => $p['id'], 'label' => $p['name'], 'qty' => $q, 'unit_price' => m_in(product_price($p)), 'discount_pct' => $disc, 'vat_rate' => 19];
+$doc = fn(int $id) => one('SELECT * FROM documents WHERE id = ?', [$id]);
+$mk = function (string $type, array $client, array $items, int $daysAgo, array $extra = []) use ($doc) {
+    $day = date('Y-m-d', strtotime("-$daysAgo days"));
+    $id = doc_save($extra + ['type' => $type, 'location_id' => 1, 'client' => $client, 'date' => $day,
+        'due_date' => date('Y-m-d', strtotime("$day +15 days")), 'items' => $items, 'timbre' => true,
+        'terms' => 'Acompte de 30 % à la commande, solde à la livraison', 'transport' => 'Livraison et installation incluses', 'warranty' => 'Selon le produit']);
+    q('UPDATE documents SET created_at = ? WHERE id = ?', ["$day 10:00:00", $id]);
+    return $doc($id);
+};
+if ($big && $small) {
+    $inv2 = $mk('facture', $hotel, [$line($small[2 % count($small)], 6)], 40, ['stock' => true]);
+    doc_add_payment($inv2, 'cheque', (int)$inv2['net'], 'Chèque n° 0001', date('Y-m-d', strtotime('-30 days')));
+    $mk('facture', $gym, [$line($small[3 % count($small)], 4)], 35);
+    $mk('devis', ['name' => 'Club Sportif Démo', 'phone' => '73 000 333'], [$line($big[3 % count($big)], 1)], 25);
+    $q1 = $mk('devis', $gym, [$line($big[0], 3, 5), $line($big[1 % count($big)], 2, 5), $line($small[0], 10)], 12);
+    doc_set_status($q1, 'envoye');
+    doc_set_status($doc((int)$q1['id']), 'accepte');
+    $inv = $doc(doc_copy($doc((int)$q1['id']), 'facture', true));
+    doc_add_payment($inv, 'virement', intdiv((int)$inv['net'] * 3, 10000) * 1000, 'Acompte — virement', date('Y-m-d', strtotime('-9 days')));
+    doc_set_status($mk('devis', $hotel, [$line($big[2 % count($big)], 4), $line($small[1 % count($small)], 8)], 3), 'envoye');
+}
+
+echo "Démo prête : " . val('SELECT COUNT(*) FROM sales') . " ventes, " . val('SELECT COUNT(*) FROM documents') . " devis et factures\n";

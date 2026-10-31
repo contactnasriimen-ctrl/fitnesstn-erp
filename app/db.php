@@ -23,7 +23,42 @@ function db(): PDO
     if ($fresh || !table_exists($pdo, 'settings')) {
         db_install($pdo);
     }
+    db_migrate($pdo);
     return $pdo;
+}
+
+const DB_VERSION = 2;
+
+/** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
+function db_migrate(PDO $pdo): void
+{
+    $version = fn() => (int)($pdo->query("SELECT value FROM settings WHERE key = 'schema_version'")->fetchColumn() ?: 1);
+    if ($version() >= DB_VERSION) return;
+    $pdo->exec('BEGIN IMMEDIATE');
+    try {
+        $v = $version();
+        foreach (glob(__DIR__ . '/migrations/*.sql') ?: [] as $file) {
+            $n = (int)basename($file);
+            if ($n <= $v || $n > DB_VERSION) continue;
+            $pdo->exec(file_get_contents($file));
+        }
+        $defaults = [
+            'company_legal_name' => '', 'company_address' => '',
+            'invoice_prefix' => '', 'quote_prefix' => 'DV-',
+            'invoice_terms' => 'Paiement comptant à la livraison', 'invoice_transport' => 'Gratuit', 'invoice_warranty' => 'Selon le produit',
+            'quote_validity_days' => '15', 'invoice_due_days' => '0', 'doc_color' => '#145c54',
+            'bank_name' => '', 'bank_rib' => '', 'bank_iban' => '', 'bank_bic' => '',
+            'warranty_notice' => "Toute utilisation hors du cadre domestique (usage professionnel, salle de sport, collectivité, kiné…) ou non conforme aux conditions normales d’utilisation entraîne l’annulation immédiate de la garantie.\n"
+                . 'يلغى الضمان تلقائيا في حالة ثبوت استخدام الجهاز خارج النطاق المنزلي الخاص أو في ظروف لا تتوافق مع معايير الاستخدام المنصوص عليها.',
+        ];
+        $st = $pdo->prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING');
+        foreach ($defaults as $k => $d) $st->execute([$k, $d]);
+        $pdo->prepare("INSERT INTO settings(key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")->execute([(string)DB_VERSION]);
+        $pdo->exec('COMMIT');
+    } catch (Throwable $e) {
+        $pdo->exec('ROLLBACK');
+        throw $e;
+    }
 }
 
 function table_exists(PDO $pdo, string $t): bool

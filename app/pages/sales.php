@@ -47,7 +47,13 @@ if ($a === 'view') {
     $statusTone = ['payee' => 'ok', 'partielle' => 'warn', 'annulee' => 'err'][$s['status']] ?? '';
     $statusLabel = ['payee' => 'Payée', 'partielle' => 'Reste à payer', 'annulee' => 'Annulée'][$s['status']] ?? $s['status'];
     $actions = '<a class="btn sm" target="_blank" href="' . e(url('ticket', ['id' => $s['id'], 'print' => 1])) . '">' . icon('print') . 'Ticket</a>'
-        . '<a class="btn sm" target="_blank" href="' . e(url('ticket', ['id' => $s['id'], 'format' => 'a4'])) . '">' . icon('receipt') . 'Facture A4</a>';
+        . '<a class="btn sm ghost" target="_blank" href="' . e(url('ticket', ['id' => $s['id'], 'format' => 'a4'])) . '">' . icon('receipt') . 'Reçu A4</a>';
+    $inv = can('invoices.view') ? one("SELECT id, number FROM documents WHERE sale_id = ? AND type = 'facture' AND status <> 'annulee'", [$s['id']]) : null;
+    if ($inv) {
+        $actions .= '<a class="btn sm primary" href="' . e(url('invoices', ['a' => 'view', 'id' => $inv['id']])) . '">' . icon('invoice') . 'Facture ' . e($inv['number']) . '</a>';
+    } elseif (can('invoices.edit') && $s['status'] !== 'annulee') {
+        $actions .= '<form method="post" action="' . e(url('invoices', ['a' => 'from_sale'])) . '" class="inline">' . csrf_field() . '<input type="hidden" name="sale_id" value="' . (int)$s['id'] . '"><button class="btn sm primary"' . ($s['client_id'] ? '' : ' disabled title="Associez un client à la vente pour établir une facture"') . '>' . icon('invoice') . 'Établir la facture</button></form>';
+    }
     layout_start('Vente ' . $s['number'], 'sales', ['actions' => $actions]);
     ?>
     <p><a class="back" href="<?= e(url('sales')) ?>"><?= icon('left') ?>Toutes les ventes</a></p>
