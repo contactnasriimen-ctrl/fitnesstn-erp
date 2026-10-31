@@ -153,7 +153,7 @@ $warrantyText = function (array $it) use ($d): string {
       <?php endforeach; ?>
     </section>
   <?php endif; ?>
-  <footer class="d-foot"><?= e($legal) ?><?= setting('company_mf') ? ' · MF ' . e(setting('company_mf')) : '' ?> · <?= e(setting('company_phone')) ?> · <?= e(setting('company_site')) ?></footer>
+  <footer class="d-foot"><?= e($legal) ?><?= setting('company_mf') ? ' · MF ' . e(setting('company_mf')) : '' ?> · <?= e(setting('company_phone')) ?><?= setting('company_email') ? ' · ' . e(setting('company_email')) : '' ?></footer>
 </main>
 <?php if (get('print')): ?><script>window.addEventListener('load', () => setTimeout(() => window.print(), 300));</script><?php endif; ?>
 </body>

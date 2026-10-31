@@ -27,7 +27,7 @@ function db(): PDO
     return $pdo;
 }
 
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 /** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
 function db_migrate(PDO $pdo): void
@@ -232,7 +232,6 @@ function db_install(PDO $pdo): void
         'company_name' => 'FitnessTN',
         'company_phone' => '+216 29 972 043',
         'company_email' => 'contact@fitness-tn.com',
-        'company_site' => 'www.fitness-tn.com',
         'company_mf' => '',
         'vat_rate' => '19',
         'ticket_footer' => "Merci pour votre confiance !\nLivraison partout en Tunisie · WhatsApp 29 972 043",

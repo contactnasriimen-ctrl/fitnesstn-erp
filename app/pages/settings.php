@@ -38,7 +38,7 @@ if (is_post()) {
             flash('ok', post('auto_backup') ? 'Sauvegarde automatique activée.' : 'Sauvegarde automatique désactivée.');
         }
         if ($a === 'general') {
-            foreach (['company_name', 'company_phone', 'company_email', 'company_site', 'ticket_footer', 'invoice_note'] as $k) {
+            foreach (['company_name', 'company_phone', 'company_email', 'ticket_footer', 'invoice_note'] as $k) {
                 set_setting($k, mb_substr((string)post($k), 0, 500));
             }
             $vat = (float)str_replace(',', '.', (string)post('vat_rate'));
@@ -121,7 +121,6 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
   <label>Nom commercial<input name="company_name" value="<?= e($s('company_name')) ?>" required></label>
   <label>Téléphone<input name="company_phone" value="<?= e($s('company_phone')) ?>"></label>
   <label>E-mail<input name="company_email" value="<?= e($s('company_email')) ?>"></label>
-  <label>Site web<input name="company_site" value="<?= e($s('company_site')) ?>"></label>
   <label>TVA par défaut (%)<select name="vat_rate"><?= opt(['19' => '19 %', '13' => '13 %', '7' => '7 %', '0' => '0 %'], (string)(int)$s('vat_rate', 19)) ?></select></label>
   <label>Timbre fiscal (DT)<input name="timbre" inputmode="decimal" value="<?= e(m_in($s('timbre', 1000))) ?>"><small>Ajouté en caisse avec le bouton « Timbre fiscal »</small></label>
   <label>Pied de ticket<textarea name="ticket_footer" rows="2"><?= e($s('ticket_footer')) ?></textarea></label>

@@ -77,14 +77,14 @@ $warranty = function (array $it) use ($sale): string {
   <?php foreach ($ships as $sh): ?>
     <p class="t-meta">Livraison <?= e($sh['number']) ?><?= $sh['planned_date'] ? ' prévue le ' . fdate($sh['planned_date']) : '' ?><?= $sh['carrier'] ? ' · ' . e($sh['carrier']) : '' ?><?= (int)$sh['cod_amount'] && !$sh['cod_collected'] ? '<br>À régler à la livraison : <b>' . money($sh['cod_amount']) . '</b>' : '' ?></p>
   <?php endforeach; ?>
-  <p class="t-foot"><?= nl2br(e(setting('ticket_footer', ''))) ?><br><?= e(setting('company_site', '')) ?></p>
+  <p class="t-foot"><?= nl2br(e(setting('ticket_footer', ''))) ?></p>
 </main>
 
 <?php else: ?>
 <main class="paper">
   <header class="a4-head">
     <div class="brand"><img src="assets/img/logo.svg" alt=""><div><h1><?= e($company) ?></h1>
-      <p><?= e($loc['name'] ?? '') ?> — <?= e($loc['address'] ?? '') ?><br>Tél. <?= e($loc['phone'] ?: setting('company_phone')) ?> · <?= e(setting('company_email')) ?> · <?= e(setting('company_site')) ?>
+      <p><?= e($loc['name'] ?? '') ?> — <?= e($loc['address'] ?? '') ?><br>Tél. <?= e($loc['phone'] ?: setting('company_phone')) ?> · <?= e(setting('company_email')) ?>
       <?php if ($mf): ?><br>Matricule fiscal : <?= e($mf) ?><?php endif; ?></p></div></div>
     <div class="doc"><h2>FACTURE</h2><p>N° <b><?= e($sale['number']) ?></b><br>Date : <?= fdate($sale['created_at']) ?></p></div>
   </header>
@@ -128,7 +128,7 @@ $warranty = function (array $it) use ($sale): string {
     <p class="small">Règlements : <?php echo e(implode(' · ', array_map(fn($p) => (PAY_METHODS[$p['method']] ?? $p['method']) . ' ' . money($p['amount']) . ' (' . fdate($p['created_at']) . ')', $pays))); ?></p>
   <?php endif; ?>
   <p class="small"><?= e(setting('invoice_note', '')) ?></p>
-  <footer class="a4-foot"><?= e($company) ?> · <?= e(setting('company_phone')) ?> · <?= e(setting('company_site')) ?></footer>
+  <footer class="a4-foot"><?= e($company) ?> · <?= e(setting('company_phone')) ?></footer>
 </main>
 <?php endif; ?>
 <?php if (get('print')): ?><script>window.addEventListener('load', () => setTimeout(() => window.print(), 300));</script><?php endif; ?>
