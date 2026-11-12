@@ -5,6 +5,7 @@ const ROLES = [
     'admin' => 'Administrateur',
     'showroom' => 'Responsable showroom',
     'marketing' => 'Marketing & publicité',
+    'livreur' => 'Livreur / transporteur',
 ];
 
 /**
@@ -24,12 +25,23 @@ const PERMS = [
         'campaigns.view', 'campaigns.edit', 'campaigns.export', 'campaigns.import', 'marketing.stats',
         'clients.view', 'clients.export', 'io',
     ],
+    // Livreur : les livraisons de tous les showrooms, et seulement leur statut (en cours, livrée, retour).
+    'livreur' => ['deliveries.view', 'deliveries.status'],
 ];
+
+/** Première page accessible au profil connecté (tableau de bord, ou Livraisons pour un livreur). */
+function home_route(): string
+{
+    if (can('dashboard')) return 'dashboard';
+    foreach (nav_items() as [$r, , , $perm]) if ($r !== '-' && can($perm)) return $r;
+    return 'account';
+}
 
 function user(): ?array
 {
     static $u = false;
-    if ($u === false || ($u && (int)$u['id'] !== (int)($_SESSION['uid'] ?? 0))) {
+    // relu aussi juste après la connexion (l'utilisateur était encore inconnu au début de la requête)
+    if ($u === false || ($u === null && !empty($_SESSION['uid'])) || ($u && (int)$u['id'] !== (int)($_SESSION['uid'] ?? 0))) {
         $u = null;
         if (!empty($_SESSION['uid'])) {
             $u = one('SELECT * FROM users WHERE id = ? AND active = 1', [$_SESSION['uid']]);
@@ -67,7 +79,7 @@ function require_perm(string $perm): void
         http_response_code(403);
         layout_start('Accès refusé', '');
         echo '<div class="empty"><h2>Accès refusé</h2><p>Votre profil (' . e(ROLES[user()['role']] ?? '') . ') n’a pas accès à cette page.</p>'
-            . '<p><a class="btn" href="' . e(url('dashboard')) . '">Retour au tableau de bord</a></p></div>';
+            . '<p><a class="btn" href="' . e(url(home_route())) . '">Retour à l’accueil</a></p></div>';
         layout_end();
         exit;
     }

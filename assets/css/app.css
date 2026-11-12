@@ -864,3 +864,18 @@ form.inline { display: inline-flex; margin: 0; }
 }
 .stamp-preview { width: 120px; height: 90px; object-fit: contain; border: 1px dashed var(--line-2); border-radius: 10px; padding: 6px; background: #fff; }
 .chip .ic { width: 14px; height: 14px; }
+
+/* Tableau en cartes sur téléphone (livraisons) */
+@media (max-width: 700px) {
+  .tbl.stack thead { display: none; }
+  .tbl.stack, .tbl.stack tbody { display: block; }
+  .tbl.stack tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .tbl.stack td { display: block; padding: 0 !important; border: 0; text-align: left; white-space: normal; }
+  .tbl.stack td:first-child { grid-column: 1 / -1; font-size: 15px; }
+  .tbl.stack td[data-th]::before { content: attr(data-th); display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+  .tbl.stack td[data-th="Adresse"], .tbl.stack td[data-th="Statut"] { grid-column: 1 / -1; }
+  .tbl.stack td:empty { display: none; }
+  .tbl.stack .status-form select { width: 100%; min-height: 42px; font-size: 14px; }
+  .tbl.stack .empty-row { grid-column: 1 / -1; }
+}
+.driver-actions .row-actions form { margin: 0; }

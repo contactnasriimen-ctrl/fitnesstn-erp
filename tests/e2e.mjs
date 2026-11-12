@@ -341,6 +341,30 @@ async function main() {
   r = await admin.req('index.php?r=settings&a=backup_file&f=' + encodeURIComponent('../erp.sqlite'));
   ok(r.status === 302, 'téléchargement de sauvegarde : nom de fichier contrôlé');
 
+  console.log('Livreur / transporteur');
+  r = await admin.form('index.php?r=deliveries&a=save', { recipient: 'Client Nabeul', phone: '98 111 222', location_id: '2', gouvernorat: 'Nabeul', city: 'Hammamet', address: 'Rue de la Plage', status: 'a_preparer', cod_amount: '250' });
+  r = await admin.follow('index.php?r=deliveries&q=Client+Nabeul');
+  const nabShip = (r.text.match(/r=deliveries&amp;a=edit&amp;id=(\d+)/) || [])[1];
+  ok(!!nabShip, 'livraison du showroom de Nabeul créée');
+  const liv = new Client();
+  r = await liv.login('livreur');
+  ok(r.text.includes('<title>Livraisons') && clean(r.text), 'livreur connecté : arrive directement sur les livraisons');
+  ok(r.text.includes('Client Nabeul') && r.text.includes('Itinéraire') && !r.text.includes('r=sales&amp;a=view'), 'livreur : livraisons de tous les showrooms, itinéraire, sans lien vers les ventes');
+  for (const p of ['dashboard', 'sales', 'pos', 'invoices', 'finances', 'clients', 'deliveries&a=carriers', 'settings']) {
+    r = await liv.follow('index.php?r=' + p);
+    ok(r.status === 403, `livreur : ${p} interdit (${r.status})`);
+  }
+  r = await liv.follow('index.php?r=deliveries&a=edit&id=' + nabShip);
+  ok(r.text.includes('Mettre à jour la livraison') && !r.text.includes('Coût transporteur'), 'livreur : fiche avec boutons de statut, sans le coût du transporteur');
+  r = await liv.form('index.php?r=deliveries&a=status', { id: nabShip, status: 'annulee' });
+  ok(r.text.includes('peut seulement indiquer'), 'livreur : annulation refusée');
+  r = await liv.form('index.php?r=deliveries&a=status', { id: nabShip, status: 'livree' });
+  ok(r.text.includes(': Livrée.'), 'livreur : livraison marquée livrée');
+  r = await liv.form('index.php?r=deliveries&a=collect', { id: nabShip });
+  ok(r.status === 403 || r.text.includes('Accès refusé'), 'livreur : ne peut pas valider l’encaissement');
+  r = await liv.form('index.php?r=deliveries&a=save', { id: nabShip, recipient: 'X', status: 'a_preparer' });
+  ok(r.status === 403 || r.text.includes('Accès refusé'), 'livreur : ne peut pas modifier la livraison');
+
   console.log('Pages finales sans erreur');
   for (const p of ['dashboard', 'finances', 'finances&a=receivables', 'marketing&a=stats', 'audit', 'clients&a=view&id=1']) {
     r = await admin.follow('index.php?r=' + p);

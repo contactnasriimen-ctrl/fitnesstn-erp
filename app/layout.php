@@ -129,7 +129,7 @@ function layout_start(string $title, string $active, array $opts = []): void
         return;
     }
     $groups = nav_groups();
-    echo '<div class="shell"><aside class="side" id="side"><div class="side-head"><a class="brand" href="' . e(url('dashboard')) . '">'
+    echo '<div class="shell"><aside class="side" id="side"><div class="side-head"><a class="brand" href="' . e(url(home_route())) . '">'
         . '<span class="brand-mark"><img src="assets/img/logo.svg" alt=""></span><span class="brand-txt"><b>' . e($company) . '</b><small>ERP · gestion</small></span></a>'
         . '<button class="icon-btn side-collapse" type="button" data-side-mini title="Replier le menu" aria-label="Replier le menu">' . icon('sidebar') . '</button></div><nav>';
     foreach ($groups as [$glabel, $links]) {
@@ -182,7 +182,7 @@ function mobile_nav(string $active): string
 {
     $tabs = array_filter([
         ['dashboard', 'Accueil', 'home', 'dashboard'], ['pos', 'Caisse', 'pos', 'pos'], ['invoices', 'Factures', 'invoice', 'invoices.view'],
-        ['sales', 'Ventes', 'receipt', 'sales.view'], ['tasks', 'Tâches', 'tasks', 'tasks'],
+        ['sales', 'Ventes', 'receipt', 'sales.view'], ['tasks', 'Tâches', 'tasks', 'tasks'], ['deliveries', 'Livraisons', 'truck', 'deliveries.view'],
     ], fn($t) => can($t[3]));
     $tabs = array_slice(array_values($tabs), 0, 4);
     $h = '<nav class="mnav" aria-label="Navigation rapide">';

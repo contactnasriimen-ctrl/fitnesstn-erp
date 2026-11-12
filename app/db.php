@@ -284,6 +284,7 @@ function db_install(PDO $pdo): void
         ['tunis', 'Responsable showroom Tunis', 'showroom', 1],
         ['nabeul', 'Responsable showroom Nabeul', 'showroom', 2],
         ['marketing', 'Marketing & publicité', 'marketing', null],
+        ['livreur', 'Livreur / transporteur', 'livreur', null],
     ];
     $lines = ["Identifiants initiaux de l'ERP FitnessTN (créés le " . date('d/m/Y H:i') . ")", ''];
     foreach ($accounts as $a) {

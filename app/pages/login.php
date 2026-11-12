@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-if (user()) redirect(url('dashboard'));
+if (user()) redirect(url(home_route()));
 
 $error = null;
 $username = '';
@@ -12,7 +12,7 @@ if (is_post()) {
     if (!$error) {
         $next = (string)($_GET['next'] ?? '');
         // Retour à la page demandée, même si l'ERP est installé dans un sous-dossier.
-        $back = preg_match('#(?:^|/)index\.php\?(r=[a-z_]+[^\s"<>]*)$#', $next, $m) ? 'index.php?' . $m[1] : url('dashboard');
+        $back = preg_match('#(?:^|/)index\.php\?(r=[a-z_]+[^\s"<>]*)$#', $next, $m) ? 'index.php?' . $m[1] : url(home_route());
         redirect($back);
     }
 }

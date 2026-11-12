@@ -6,6 +6,15 @@ $a = (string)get('a', 'list');
 $scope = scope_loc();
 $admin = is_admin();
 
+// Statuts que le livreur peut choisir lui-même
+const DRIVER_STATUS = ['en_cours' => 'En cours de livraison', 'livree' => 'Livrée', 'retour' => 'Retour / échec'];
+
+/** Lien Google Maps vers l'adresse de livraison. */
+function maps_url(array $r): string
+{
+    return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode(trim($r['address'] . ', ' . $r['city'] . ', ' . $r['gouvernorat'] . ', Tunisie', ', '));
+}
+
 function shipment_load(int $id): ?array
 {
     $sh = one('SELECT * FROM shipments WHERE id = ?', [$id]);
@@ -44,17 +53,21 @@ if (is_post()) {
             redirect(url('deliveries', ['a' => 'carriers']));
         }
 
-        require_perm('deliveries.edit');
         if ($a === 'status') {
+            if (!can('deliveries.edit') && !can('deliveries.status')) throw new RuntimeException('Action non autorisée.');
             $sh = shipment_load((int)post('id'));
             if (!$sh) throw new RuntimeException('Livraison introuvable.');
             $status = (string)post('status');
             if (!isset(SHIP_STATUS[$status])) throw new RuntimeException('Statut invalide.');
+            if (!can('deliveries.edit') && (!isset(DRIVER_STATUS[$status]) || !in_array($sh['status'], ['a_preparer', 'en_cours', 'retour'], true))) {
+                throw new RuntimeException('Le livreur peut seulement indiquer « en cours », « livrée » ou « retour / échec ».');
+            }
             update('shipments', ['status' => $status, 'updated_at' => now(), 'delivered_at' => $status === 'livree' ? ($sh['delivered_at'] ?: now()) : null], 'id = ?', [$sh['id']]);
             audit('statut livraison', 'shipment', $sh['id'], $sh['number'] . ' → ' . SHIP_STATUS[$status]);
             flash('ok', $sh['number'] . ' : ' . SHIP_STATUS[$status] . '.');
             back(url('deliveries'));
         }
+        require_perm('deliveries.edit');
         if ($a === 'collect') {
             $sh = shipment_load((int)post('id'));
             if (!$sh) throw new RuntimeException('Livraison introuvable.');
@@ -111,10 +124,11 @@ $carriersAll = all('SELECT * FROM carriers ORDER BY active DESC, type DESC, name
 $carrierOpts = [];
 foreach ($carriersAll as $c) if ($c['active']) $carrierOpts[$c['id']] = $c['name'];
 
-$tabsHtml = tabs([
+$tabsHtml = can('carriers.view') ? tabs([
     'list' => ['Livraisons', url('deliveries')],
     'carriers' => ['Transporteurs', url('deliveries', ['a' => 'carriers'])],
-], $a === 'edit' ? 'list' : ($a === 'carrier_edit' ? 'carriers' : $a));
+], $a === 'edit' ? 'list' : ($a === 'carrier_edit' ? 'carriers' : $a)) : '';
+$driver = !can('deliveries.edit') && can('deliveries.status');
 
 /* ---------- Transporteurs ---------- */
 
@@ -199,9 +213,26 @@ if ($a === 'edit') {
     layout_start($sh['id'] ? 'Livraison ' . $sh['number'] : 'Nouvelle livraison', 'deliveries');
     ?>
     <p><a class="back" href="<?= e(url('deliveries')) ?>"><?= icon('left') ?>Toutes les livraisons</a></p>
+    <?php if ($driver && $sh['id'] && in_array($sh['status'], ['a_preparer', 'en_cours', 'retour'], true)): ?>
+      <section class="card driver-actions">
+        <h2>Mettre à jour la livraison</h2>
+        <div class="row-actions center">
+          <?php foreach (DRIVER_STATUS as $st => $label): if ($st === $sh['status']) continue; ?>
+            <form method="post" action="<?= e(url('deliveries', ['a' => 'status'])) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$sh['id'] ?>"><input type="hidden" name="status" value="<?= $st ?>">
+              <button class="btn <?= $st === 'livree' ? 'primary' : '' ?> lg-btn"><?= icon($st === 'livree' ? 'check' : ($st === 'retour' ? 'x' : 'truck')) ?><?= e($label) ?></button></form>
+          <?php endforeach; ?>
+        </div>
+        <?php if ((int)$sh['cod_amount'] && !$sh['cod_collected']): ?><p class="hint center">À encaisser chez le client : <b><?= money($sh['cod_amount']) ?></b></p><?php endif; ?>
+      </section>
+    <?php endif; ?>
     <form method="post" action="<?= e(url('deliveries', ['a' => 'save'])) ?>" class="card form-grid">
       <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$sh['id'] ?>">
+      <?php if ($driver): ?>
+        <p class="span2"><a class="btn sm" target="_blank" rel="noopener" href="<?= e(maps_url($sh)) ?>"><?= icon('truck') ?>Itinéraire (Google Maps)</a>
+          <?php if ($sh['phone']): ?><a class="btn sm" href="tel:<?= e($sh['phone']) ?>"><?= icon('user') ?>Appeler le client</a><?php endif; ?></p>
+      <?php else: ?>
       <label>Vente liée (n°)<input name="sale_number" value="<?= e($sale['number'] ?? '') ?>" placeholder="ex. TUN-26-00012"><?php if ($sale): ?><small><a href="<?= e(url('sales', ['a' => 'view', 'id' => $sh['sale_id']])) ?>">Voir la vente</a> · total <?= money($sale['total']) ?>, payé <?= money($sale['paid']) ?></small><?php endif; ?></label>
+      <?php endif; ?>
       <?php if (!$scope): ?><label>Départ<select name="location_id"><?= opt(location_options(), $sh['location_id'], true) ?></select></label><?php endif; ?>
       <label>Destinataire<input name="recipient" value="<?= e($sh['recipient']) ?>" required></label>
       <label>Téléphone<input name="phone" value="<?= e($sh['phone']) ?>" inputmode="tel"></label>
@@ -212,14 +243,18 @@ if ($a === 'edit') {
       <label>N° de suivi<input name="tracking" value="<?= e($sh['tracking']) ?>"></label>
       <label>Date prévue<input type="date" name="planned_date" value="<?= e($sh['planned_date']) ?>"></label>
       <label>Statut<select name="status"><?= opt(SHIP_STATUS, $sh['status']) ?></select></label>
-      <label>Coût transporteur (DT)<input name="fee" inputmode="decimal" value="<?= e(m_in($sh['fee'])) ?>"></label>
+      <?php if (!$driver): ?><label>Coût transporteur (DT)<input name="fee" inputmode="decimal" value="<?= e(m_in($sh['fee'])) ?>"></label><?php endif; ?>
       <label>À encaisser à la livraison (DT)<input name="cod_amount" inputmode="decimal" value="<?= e(m_in($sh['cod_amount'])) ?>" <?= $sh['cod_collected'] ? 'readonly' : '' ?>></label>
-      <?php if (!$sh['cod_collected']): ?>
+      <?php if ($driver): ?>
+      <?php elseif (!$sh['cod_collected']): ?>
         <label class="check span2"><input type="checkbox" name="cod_collected" value="1"> Le montant à encaisser a été récupéré (enregistre le paiement sur la vente)</label>
       <?php else: ?><p class="span2"><?= badge('Montant encaissé', 'ok') ?></p><?php endif; ?>
       <label class="span2">Note<textarea name="note" rows="2"><?= e($sh['note']) ?></textarea></label>
       <?php if ($editable): ?><div class="span2 row-actions"><button class="btn primary"><?= icon('check') ?>Enregistrer</button></div><?php endif; ?>
     </form>
+    <?php if (!$editable): ?>
+      <script>document.querySelectorAll('form.form-grid input, form.form-grid select, form.form-grid textarea').forEach((el) => { el.disabled = true; });</script>
+    <?php endif; ?>
     <?php
     layout_end();
     exit;
@@ -254,7 +289,7 @@ layout_start('Livraisons & transporteurs', 'deliveries', ['actions' => $actions]
 echo $tabsHtml;
 $chips = ['ouvertes' => 'À faire (' . (($counts['a_preparer'] ?? 0) + ($counts['en_cours'] ?? 0)) . ')'];
 foreach (SHIP_STATUS as $k => $label) $chips[$k] = $label . ' (' . ($counts[$k] ?? 0) . ')';
-$chips['a_recuperer'] = 'Argent à récupérer (' . $owed . ')';
+if (!$driver) $chips['a_recuperer'] = 'Argent à récupérer (' . $owed . ')';
 $chips['toutes'] = 'Toutes';
 ?>
 <div class="chips">
@@ -270,22 +305,22 @@ $chips['toutes'] = 'Toutes';
   <button class="btn"><?= icon('search') ?>Filtrer</button>
 </form>
 <div class="card flush">
-  <table class="tbl">
+  <table class="tbl stack">
     <thead><tr><th>N°</th><th>Prévue</th><th>Destinataire</th><th>Destination</th><th>Transporteur</th><th class="num">À encaisser</th><th>Statut</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
-        <td><a href="<?= e(url('deliveries', ['a' => 'edit', 'id' => $r['id']])) ?>"><b><?= e($r['number']) ?></b></a><?= $r['sale_number'] ? '<br><small><a class="muted" href="' . e(url('sales', ['a' => 'view', 'id' => $r['sale_id']])) . '">' . e($r['sale_number']) . '</a></small>' : '' ?></td>
-        <td><?= $r['planned_date'] ? fdate($r['planned_date']) : '<span class="muted">—</span>' ?><?= $r['delivered_at'] ? '<br><small class="muted">livrée ' . fdate($r['delivered_at']) . '</small>' : '' ?></td>
-        <td><?= e($r['recipient']) ?><?= $r['phone'] ? '<br><a href="tel:' . e($r['phone']) . '"><small>' . e($r['phone']) . '</small></a>' : '' ?></td>
-        <td><?= e(trim($r['city'] . ', ' . $r['gouvernorat'], ', ')) ?><?= $r['address'] ? '<br><small class="muted">' . e($r['address']) . '</small>' : '' ?></td>
-        <td><?= e($r['carrier'] ?: '—') ?><?= $r['tracking'] ? '<br><small class="muted">' . e($r['tracking']) . '</small>' : '' ?></td>
-        <td class="num"><?php if ((int)$r['cod_amount']): ?><?= money($r['cod_amount']) ?><br><?= $r['cod_collected'] ? badge('encaissé', 'ok') : ($r['status'] === 'livree' ? badge('à récupérer', 'warn') : '') ?><?php endif; ?></td>
-        <td>
-          <?php if (can('deliveries.edit') && in_array($r['status'], ['a_preparer', 'en_cours', 'retour'], true)): ?>
+        <td><a href="<?= e(url('deliveries', ['a' => 'edit', 'id' => $r['id']])) ?>"><b><?= e($r['number']) ?></b></a><?= $r['sale_number'] && can('sales.view') ? '<br><small><a class="muted" href="' . e(url('sales', ['a' => 'view', 'id' => $r['sale_id']])) . '">' . e($r['sale_number']) . '</a></small>' : '' ?></td>
+        <td data-th="Prévue"><?= $r['planned_date'] ? fdate($r['planned_date']) : '<span class="muted">—</span>' ?><?= $r['delivered_at'] ? '<br><small class="muted">livrée ' . fdate($r['delivered_at']) . '</small>' : '' ?></td>
+        <td data-th="Client"><?= e($r['recipient']) ?><?= $r['phone'] ? '<br><a href="tel:' . e($r['phone']) . '"><small>' . e($r['phone']) . '</small></a>' : '' ?></td>
+        <td data-th="Adresse"><?= e(trim($r['city'] . ', ' . $r['gouvernorat'], ', ')) ?><?= $r['address'] ? '<br><small class="muted">' . e($r['address']) . '</small>' : '' ?><br><a class="small" target="_blank" rel="noopener" href="<?= e(maps_url($r)) ?>">Itinéraire</a></td>
+        <td data-th="Transporteur"><?= e($r['carrier'] ?: '—') ?><?= $r['tracking'] ? '<br><small class="muted">' . e($r['tracking']) . '</small>' : '' ?></td>
+        <td class="num" data-th="À encaisser"><?php if ((int)$r['cod_amount']): ?><?= money($r['cod_amount']) ?><br><?= $r['cod_collected'] ? badge('encaissé', 'ok') : ($r['status'] === 'livree' ? badge('à récupérer', 'warn') : '') ?><?php endif; ?></td>
+        <td data-th="Statut">
+          <?php if ((can('deliveries.edit') || $driver) && in_array($r['status'], ['a_preparer', 'en_cours', 'retour'], true)): ?>
             <form method="post" action="<?= e(url('deliveries', ['a' => 'status'])) ?>" class="status-form">
               <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-              <select name="status" onchange="this.form.submit()" class="st-<?= e($r['status']) ?>"><?= opt(SHIP_STATUS, $r['status']) ?></select>
+              <select name="status" onchange="this.form.submit()" class="st-<?= e($r['status']) ?>" aria-label="Statut"><?= opt($driver ? [$r['status'] => SHIP_STATUS[$r['status']]] + DRIVER_STATUS : SHIP_STATUS, $r['status']) ?></select>
             </form>
           <?php else: ?><?= badge(SHIP_STATUS[$r['status']] ?? $r['status'], ship_tone($r['status'])) ?><?php endif; ?>
         </td>
