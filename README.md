@@ -2,7 +2,7 @@
 
 Caisse, ventes, devis & factures, stock multi-sites, livraisons & transporteurs, tâches (Kanban), marketing, finances et import/export CSV — pour les showrooms de Tunis et de Nabeul.
 
-**▶ Démo en ligne : https://contactnasriimen-ctrl.github.io/fitnesstn-erp/** — comptes `admin`, `tunis`, `nabeul`, `marketing`, mot de passe `demo2026`.
+**▶ Démo en ligne : https://contactnasriimen-ctrl.github.io/fitnesstn-erp/** — comptes de démonstration : `admin` / `ftn-3a44ca`, `tunis` / `ftn-cdc467`, `nabeul` / `ftn-14509e`, `marketing` / `ftn-6473e3`, `livreur` / `ftn-76b68c`.
 La démo fait tourner ce code PHP dans le navigateur (PHP 8.3 WebAssembly) : les essais restent dans le navigateur de chacun. Pour l’utilisation réelle à plusieurs, installez l’ERP sur un hébergement PHP (voir plus bas).
 
 ![Tableau de bord](docs/captures/02-tableau-de-bord.png)
