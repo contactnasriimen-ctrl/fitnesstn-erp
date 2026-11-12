@@ -19,6 +19,7 @@ if (is_post()) {
             sale_cancel($id, (string)post('reason'));
             flash('ok', 'Vente annulée : stock remis en place et remboursement tracé.');
         } elseif ($a === 'note') {
+            require_perm('sales.pay');
             $s = one('SELECT * FROM sales WHERE id = ?', [$id]);
             if (!$s || !can_loc((int)$s['location_id'])) throw new RuntimeException('Vente introuvable.');
             update('sales', ['note' => mb_substr((string)post('note'), 0, 500)], 'id = ?', [$id]);
@@ -75,11 +76,13 @@ if ($a === 'view') {
             <dt>Annulation</dt><dd><?= fdate($s['cancelled_at'], true) ?> par <?= e($s['canceller']) ?> — <?= e($s['cancel_reason']) ?></dd>
           <?php endif; ?>
         </dl>
+        <?php if (can('sales.pay')): ?>
         <form method="post" action="<?= e(url('sales', ['a' => 'note'])) ?>" class="inline-form">
           <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <input name="note" value="<?= e($s['note']) ?>" placeholder="Note interne…" maxlength="500">
           <button class="btn sm ghost">Enregistrer</button>
         </form>
+        <?php elseif ($s['note']): ?><p class="muted">Note : <?= e($s['note']) ?></p><?php endif; ?>
       </section>
       <section class="card">
         <h2>Paiements</h2>

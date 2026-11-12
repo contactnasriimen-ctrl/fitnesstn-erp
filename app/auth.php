@@ -25,14 +25,16 @@ const PERMS = [
         'campaigns.view', 'campaigns.edit', 'campaigns.export', 'campaigns.import', 'marketing.stats',
         'clients.view', 'clients.export', 'io',
     ],
-    // Livreur : les livraisons de tous les showrooms, et seulement leur statut (en cours, livrée, retour).
-    'livreur' => ['deliveries.view', 'deliveries.status'],
+    // Livreur : tous les showrooms ; change le statut des livraisons, consulte ventes, devis, factures,
+    // clients, produits et stock sans rien modifier (pas de caisse, de finances ni de prix d'achat).
+    'livreur' => ['deliveries.view', 'deliveries.status', 'sales.view', 'invoices.view', 'clients.view', 'products.view', 'stock.view'],
 ];
 
 /** Première page accessible au profil connecté (tableau de bord, ou Livraisons pour un livreur). */
 function home_route(): string
 {
     if (can('dashboard')) return 'dashboard';
+    if (can('deliveries.status')) return 'deliveries';
     foreach (nav_items() as [$r, , , $perm]) if ($r !== '-' && can($perm)) return $r;
     return 'account';
 }

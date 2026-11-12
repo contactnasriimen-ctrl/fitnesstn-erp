@@ -77,7 +77,7 @@ if ($a === 'edit') {
         <ul class="role-help">
           <li><b>Administrateur</b> — tout : les deux showrooms, finances et marges, prix d’achat, utilisateurs, paramètres, annulation de ventes, import de catalogue.</li>
           <li><b>Responsable showroom</b> — la caisse, les ventes, clôtures, dépenses et livraisons de <em>son</em> showroom ; le stock de tous les sites (mouvements pour le sien) ; les clients ; le tableau de tâches de son showroom (et celui du marketing en lecture).</li>
-          <li><b>Livreur / transporteur</b> — uniquement les livraisons de tous les showrooms (client, téléphone, adresse avec itinéraire, montant à encaisser) ; il indique « en cours », « livrée » ou « retour / échec ». Aucun accès aux prix, à la caisse, aux finances ni aux autres pages.</li>
+          <li><b>Livreur / transporteur</b> — les livraisons de tous les showrooms (client, téléphone, itinéraire, montant à encaisser) : il indique « en cours », « livrée » ou « retour / échec ». Il consulte aussi, sans rien modifier, les ventes, devis, factures, clients, produits et stock. Pas de caisse, de finances, de prix d’achat ni de paramètres.</li>
           <li><b>Marketing & publicité</b> — les campagnes (budget, leads, ventes générées), les statistiques d’origine des ventes, le tableau de tâches marketing (et ceux des showrooms en lecture), le catalogue et les clients en lecture.</li>
         </ul>
       </section>

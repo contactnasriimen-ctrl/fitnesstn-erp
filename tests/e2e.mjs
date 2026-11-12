@@ -349,8 +349,17 @@ async function main() {
   const liv = new Client();
   r = await liv.login('livreur');
   ok(r.text.includes('<title>Livraisons') && clean(r.text), 'livreur connecté : arrive directement sur les livraisons');
-  ok(r.text.includes('Client Nabeul') && r.text.includes('Itinéraire') && !r.text.includes('r=sales&amp;a=view'), 'livreur : livraisons de tous les showrooms, itinéraire, sans lien vers les ventes');
-  for (const p of ['dashboard', 'sales', 'pos', 'invoices', 'finances', 'clients', 'deliveries&a=carriers', 'settings']) {
+  ok(r.text.includes('Client Nabeul') && r.text.includes('Itinéraire'), 'livreur : livraisons de tous les showrooms, avec itinéraire');
+  for (const p of ['sales', 'quotes', 'invoices', 'clients', 'products', 'stock', 'invoices&a=view&id=' + invId, 'sales&a=view&id=' + s2.id]) {
+    r = await liv.follow('index.php?r=' + p);
+    ok(r.status === 200 && clean(r.text) && !r.text.includes('Nouvelle facture') && !r.text.includes('Nouveau client') && !r.text.includes('Enregistrer le paiement'), `livreur : ${p} en consultation`);
+  }
+  for (const [p, data] of [['invoices&a=save', { 'client[name]': 'X' }], ['invoices&a=internal_note', { id: String(invId), internal_note: 'x' }], ['invoices&a=pay', { id: String(invId), amount: '1', method: 'especes' }],
+    ['clients&a=save', { name: 'X' }], ['sales&a=note', { id: String(s2.id), note: 'x' }], ['stock&a=move', { type: 'entree' }], ['pos&a=open&loc=1', { float: '1' }]]) {
+    r = await liv.form('index.php?r=' + p, data);
+    ok(r.status === 403 || r.text.includes('Accès refusé'), `livreur : écriture refusée (${p})`);
+  }
+  for (const p of ['dashboard', 'pos', 'finances', 'deliveries&a=carriers', 'settings', 'users', 'io']) {
     r = await liv.follow('index.php?r=' + p);
     ok(r.status === 403, `livreur : ${p} interdit (${r.status})`);
   }

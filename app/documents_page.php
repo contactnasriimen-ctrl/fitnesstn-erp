@@ -49,7 +49,7 @@ if (is_post()) {
         }
         $d = doc_get($id, $type);
         if (!$d) throw new RuntimeException('Document introuvable.');
-        if ($a !== 'internal_note') require_perm('invoices.edit');
+        require_perm('invoices.edit');
         if (!can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) throw new RuntimeException('Document introuvable.');
         switch ($a) {
             case 'status':
@@ -373,11 +373,13 @@ if ($a === 'view') {
             <?php foreach ($pays as $p): ?><li class="ok"><b>Paiement de <?= money($p['amount']) ?></b><small><?= fdate($p['date']) ?> · <?= e(PAY_METHODS[$p['method']] ?? '') ?><?= $p['user_name'] ? ' · ' . e($p['user_name']) : '' ?></small></li><?php endforeach; ?>
             <?php if ($d['status'] === 'annulee'): ?><li class="err"><b>Annulée</b><small><?= fdate($d['cancelled_at'], true) ?> — <?= e($d['cancel_reason']) ?></small></li><?php endif; ?>
           </ol>
+          <?php if ($canEdit): ?>
           <form method="post" action="<?= e(url($route, ['a' => 'internal_note'])) ?>" class="inline-form">
             <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
             <input name="internal_note" value="<?= e($d['internal_note']) ?>" placeholder="Note interne…" maxlength="1000">
             <button class="btn sm ghost">Enregistrer</button>
           </form>
+          <?php elseif ($d['internal_note']): ?><p class="muted">Note interne : <?= e($d['internal_note']) ?></p><?php endif; ?>
         </section>
 
         <?php if (!$isQuote && is_admin() && $d['status'] !== 'annulee'): ?>
