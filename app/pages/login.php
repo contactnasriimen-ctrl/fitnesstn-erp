@@ -21,9 +21,9 @@ layout_start('Connexion', 'login', ['body' => 'login-page']);
 ?>
 <div class="login-wrap">
   <div class="login-art" aria-hidden="true">
-    <img src="assets/img/logo.svg" alt="">
-    <h2><?= e(setting('company_name', 'FitnessTN')) ?></h2>
-    <p>Caisse · Stock · Livraisons · Tâches · Marketing · Finances</p>
+    <img class="login-logo" src="assets/img/logo-fitnesstn-white.svg" alt="">
+    <h2>ERP · gestion</h2>
+    <p>Caisse · Devis & factures · Stock · Livraisons · Tâches · Finances</p>
     <ul>
       <?php foreach (locations(true, 'showroom') as $l): ?>
         <li><?= icon('stock') ?><?= e($l['name']) ?></li>

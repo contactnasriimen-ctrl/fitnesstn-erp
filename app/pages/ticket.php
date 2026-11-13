@@ -45,7 +45,7 @@ $warranty = function (array $it) use ($sale): string {
 <?php if (!$a4): ?>
 <main class="paper">
   <header class="t-head">
-    <img src="assets/img/logo.svg" alt="" class="t-logo">
+    <img src="assets/img/logo-fitnesstn.svg" alt="" class="t-logo">
     <h1><?= e($company) ?></h1>
     <p><?= e($loc['name'] ?? '') ?><br><?= e($loc['address'] ?? '') ?><br>Tél. <?= e($loc['phone'] ?: setting('company_phone')) ?></p>
     <?php if ($mf): ?><p>MF : <?= e($mf) ?></p><?php endif; ?>
@@ -83,7 +83,7 @@ $warranty = function (array $it) use ($sale): string {
 <?php else: ?>
 <main class="paper">
   <header class="a4-head">
-    <div class="brand"><img src="assets/img/logo.svg" alt=""><div><h1><?= e($company) ?></h1>
+    <div class="brand"><img src="assets/img/logo-fitnesstn.svg" alt=""><div><h1><?= e($company) ?></h1>
       <p><?= e($loc['name'] ?? '') ?> — <?= e($loc['address'] ?? '') ?><br>Tél. <?= e($loc['phone'] ?: setting('company_phone')) ?> · <?= e(setting('company_email')) ?>
       <?php if ($mf): ?><br>Matricule fiscal : <?= e($mf) ?><?php endif; ?></p></div></div>
     <div class="doc"><h2>FACTURE</h2><p>N° <b><?= e($sale['number']) ?></b><br>Date : <?= fdate($sale['created_at']) ?></p></div>

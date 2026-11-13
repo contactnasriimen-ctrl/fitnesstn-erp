@@ -50,8 +50,7 @@ $warrantyText = function (array $it) use ($d): string {
 <main class="paper">
   <header class="d-head">
     <div class="d-logo">
-      <span class="d-mark"><img src="assets/img/logo.svg" alt=""></span>
-      <span class="d-word"><b><?= e(mb_strtoupper($company)) ?></b><small>Sports equipment</small></span>
+      <img src="assets/img/logo-fitnesstn.svg" alt="<?= e($company) ?>">
     </div>
     <div class="d-title">
       <h1><?= $title ?></h1>

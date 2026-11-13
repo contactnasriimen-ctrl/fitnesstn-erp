@@ -130,7 +130,7 @@ function layout_start(string $title, string $active, array $opts = []): void
     }
     $groups = nav_groups();
     echo '<div class="shell"><aside class="side" id="side"><div class="side-head"><a class="brand" href="' . e(url(home_route())) . '">'
-        . '<span class="brand-mark"><img src="assets/img/logo.svg" alt=""></span><span class="brand-txt"><b>' . e($company) . '</b><small>ERP · gestion</small></span></a>'
+        . '<img class="brand-full" src="assets/img/logo-fitnesstn-white.svg" alt="' . e($company) . '"><img class="brand-mini" src="assets/img/runner-white.svg" alt="' . e($company) . '"><small class="brand-txt">ERP · gestion</small></a>'
         . '<button class="icon-btn side-collapse" type="button" data-side-mini title="Replier le menu" aria-label="Replier le menu">' . icon('sidebar') . '</button></div><nav>';
     foreach ($groups as [$glabel, $links]) {
         if ($glabel !== '') echo '<div class="nav-sep"><span>' . e($glabel) . '</span></div>';
