@@ -233,4 +233,43 @@
   });
   document.addEventListener('focusout', hideTip);
   addEventListener('scroll', hideTip, { passive: true });
+
+  // Barre de chargement en haut de l'écran pendant le passage d'une page à l'autre
+  const root = document.documentElement;
+  let busyTimer = 0;
+  const busy = () => {
+    root.classList.add('nav-busy');
+    clearTimeout(busyTimer);
+    busyTimer = setTimeout(() => root.classList.remove('nav-busy'), 8000);
+  };
+  const isDownload = (url) => /[?&]a=(export|template|backup|backup_file)(&|$)/.test(url);
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if ((a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+    const href = a.getAttribute('href') || '';
+    if (href === '' || href.startsWith('#') || /^(tel|mailto|javascript):/i.test(href) || isDownload(href)) return;
+    const url = new URL(href, location.href);
+    if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search && url.hash)) return;
+    busy();
+  });
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (e.defaultPrevented || (f.target && f.target !== '_self') || f.matches('[data-x-form]')) return;
+    if (f.querySelector('input[name="a"][value="export"], input[name="a"][value="template"]') || isDownload(f.getAttribute('action') || '')) return;
+    busy();
+  });
+  addEventListener('pageshow', () => root.classList.remove('nav-busy'));
+
+  // Afficher / masquer le mot de passe
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pw-toggle]');
+    if (!b) return;
+    const input = b.parentElement.querySelector('input');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    b.setAttribute('aria-pressed', String(show));
+    b.title = show ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
+    input.focus();
+  });
 })();
