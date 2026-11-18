@@ -27,7 +27,7 @@ function page(title, text) {
 <title>${title}</title><body style="font:16px system-ui;display:grid;place-items:center;min-height:90vh;background:#f3f5f9;color:#0f172a">
 <div style="max-width:440px;text-align:center;background:#fff;padding:28px;border-radius:16px;border:1px solid #e3e8f0">
 <h1 style="font-size:20px">${title}</h1><p>${text}</p>
-<p><a href="${SCOPE.pathname}" style="display:inline-block;background:#1f7bff;color:#fff;padding:10px 16px;border-radius:9px;text-decoration:none;font-weight:600">Ouvrir la démo</a></p></div>`;
+<p><a href="${SCOPE.pathname}" style="display:inline-block;background:#1f7bff;color:#fff;padding:10px 16px;border-radius:9px;text-decoration:none;font-weight:600">Ouvrir l’ERP</a></p></div>`;
   return new Response(html, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
@@ -42,7 +42,7 @@ function ask(client, msg, transfer) {
 
 async function viaPhp(request) {
   const host = await findHost();
-  if (!host) return page('Démo fermée', 'Cette page a besoin de l’onglet principal de la démo. Ouvrez-la puis réessayez.');
+  if (!host) return page('ERP fermé', 'Cette page a besoin de l’onglet principal de l’ERP. Ouvrez-le puis réessayez.');
   const body = ['GET', 'HEAD'].includes(request.method) ? null : await request.arrayBuffer();
   const headers = {};
   request.headers.forEach((v, k) => { if (k !== 'cookie') headers[k] = v; });
