@@ -36,7 +36,7 @@ layout_start('Connexion', 'login', ['body' => 'login-page']);
     <p class="muted">Accès réservé à l’équipe <?= e(setting('company_name', 'FitnessTN')) ?>.</p>
     <?php if ($error): ?><div class="flash err"><?= icon('alert') ?><span><?= e($error) ?></span></div><?php endif; ?>
     <label>Identifiant<input name="username" value="<?= e($username) ?>" autocomplete="username" required autofocus></label>
-    <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
+    <label>Mot de passe<span class="pw-field"><input type="password" name="password" autocomplete="current-password" required><button type="button" class="icon-btn xs" data-pw-toggle title="Afficher le mot de passe" aria-label="Afficher le mot de passe" aria-pressed="false"><?= icon('eye') ?></button></span></label>
     <button class="btn primary block" type="submit"><?= icon('lock') ?>Se connecter</button>
     <p class="hint">Mot de passe oublié ? Demandez à l’administrateur de le réinitialiser.</p>
   </form>

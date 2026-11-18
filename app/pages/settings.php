@@ -9,6 +9,7 @@ if ($a === 'backup') {
     if (!is_dir(dirname($tmp))) mkdir(dirname($tmp), 0775, true);
     db()->exec('VACUUM INTO ' . db()->quote($tmp));
     audit('sauvegarde téléchargée', 'settings');
+    output_raw();
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="erp-fitnesstn-' . date('Y-m-d-His') . '.sqlite"');
     header('Content-Length: ' . filesize($tmp));
@@ -23,6 +24,7 @@ if ($a === 'backup_file') {
     $file = backup_dir() . '/' . $name;
     if (!preg_match('/^erp-\d{4}-\d{2}-\d{2}\.sqlite$/', $name) || !is_file($file)) redirect(url('settings'));
     audit('sauvegarde automatique téléchargée', 'settings', null, $name);
+    output_raw();
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="erp-fitnesstn-' . substr($name, 4) . '"');
     header('Content-Length: ' . filesize($file));

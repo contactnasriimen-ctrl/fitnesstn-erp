@@ -1,7 +1,7 @@
 # Hébergement Apache / LiteSpeed : seuls index.php, check.php et assets/ sont publics.
 Options -Indexes
 DirectoryIndex index.php
-<FilesMatch "\.(txt|md|bat|sqlite|sqlite-journal|sqlite-wal|sqlite-shm|sql|csv|json|log|ps1|sh|mjs|lock)$">
+<FilesMatch "\.(txt|md|bat|sqlite|sqlite-journal|sqlite-wal|sqlite-shm|sql|csv|json|log|ps1|sh|mjs|lock|xlsx|pdf|bak|zip)$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
@@ -10,6 +10,21 @@ DirectoryIndex index.php
     Deny from all
   </IfModule>
 </FilesMatch>
+
+# Fichiers et dossiers cachés (.git, .env, .vscode…) : introuvables
+<IfModule mod_alias.c>
+  RedirectMatch 404 "/\.(?!well-known/)"
+</IfModule>
+
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
+  # CSS, JS et images : gardés en cache par le navigateur (les adresses changent à chaque mise à jour)
+  <FilesMatch "\.(css|js|svg|png|jpe?g|webp|gif|ico|woff2)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+# Compression des pages et des fichiers texte
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>

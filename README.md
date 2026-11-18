@@ -72,6 +72,13 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 
 Après l’envoi des fichiers, ouvrez **`/check.php`** : la page vérifie PHP, SQLite, les droits d’écriture et que la base de données n’est pas téléchargeable. Tout doit être vert avant d’utiliser l’ERP.
 
+## Sécurité et rapidité
+
+- Connexion : mots de passe chiffrés (bcrypt), blocage après 8 essais ratés, même temps de réponse qu’un identifiant existe ou non, session renouvelée à chaque connexion et refus des identifiants de session inventés, **déconnexion automatique après 10 h sans activité**.
+- Chaque page envoie des en-têtes de protection : politique de contenu (CSP : seuls les fichiers de l’ERP s’exécutent), anti-intégration dans un autre site, HTTPS imposé (HSTS) quand le site est en HTTPS, caméra / micro / position désactivés.
+- Toutes les actions passent par un jeton anti-falsification (CSRF) ; la base, les sauvegardes, les dossiers `app/`, `data/`, `tools/`, `tests/` et les fichiers cachés (`.git`…) ne sont jamais servis ; aucun script ne peut s’exécuter depuis le dossier des fichiers envoyés.
+- Pages compressées (5 à 10 fois plus légères), CSS / JS / images gardés en cache par le navigateur, index de base de données sur les listes et calculs (page Clients 7 fois plus rapide).
+
 ## Pour le développeur
 
 - PHP 8.0+ (pdo_sqlite, mbstring), aucune dépendance. Montants stockés en millimes.

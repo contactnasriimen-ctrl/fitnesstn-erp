@@ -78,7 +78,25 @@ $hello = (int)date('G') < 18 ? 'Bonjour' : 'Bonsoir';
 $actions = can('pos') ? '<a class="btn sm primary" href="' . e(url('pos')) . '">' . icon('pos') . 'Ouvrir la caisse</a>' : '';
 layout_start('Tableau de bord', 'dashboard', ['actions' => $actions]);
 ?>
-<p class="lead"><?= e($hello) ?> <?= e(explode(' ', $u['name'])[0]) ?> — <?= e(strftime_fr($today)) ?> <?= fdate($today) ?><?= $scope ? ' · ' . e(location($scope)['name']) : '' ?></p>
+<?php
+$heroBits = [];
+if ($role !== 'marketing') {
+    $heroBits[] = '<b>' . $todayAll['n'] . '</b> vente' . ($todayAll['n'] > 1 ? 's' : '') . ' aujourd’hui';
+    $heroBits[] = '<b>' . $shipOpen . '</b> livraison' . ($shipOpen > 1 ? 's' : '') . ' en cours';
+}
+if (can('repairs.view')) {
+    $repOpen = (int)val("SELECT COUNT(*) FROM repairs WHERE status IN ('nouveau','en_cours')" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
+    $heroBits[] = '<b>' . $repOpen . '</b> réparation' . ($repOpen > 1 ? 's' : '') . ' à traiter';
+}
+?>
+<section class="welcome">
+  <div>
+    <small><?= e(ucfirst(strftime_fr($today))) ?> <?= fdate($today) ?><?= $scope ? ' · ' . e(location($scope)['name']) : '' ?></small>
+    <h2><?= e($hello) ?> <?= e(explode(' ', $u['name'])[0]) ?></h2>
+    <?php if ($heroBits): ?><p><?= implode(' · ', $heroBits) ?></p><?php endif; ?>
+  </div>
+  <img class="welcome-mark" src="assets/img/runner-white.svg" alt="">
+</section>
 
 <div class="grid4 kpis">
   <div class="kpi hero with-ic"><span class="kpi-ic"><?= icon('cash') ?></span><span>Chiffre d’affaires aujourd’hui</span><b><?= money0($todayAll['t']) ?></b>

@@ -8,3 +8,4 @@ tests/out/
 assets/img/uploads/*
 !assets/img/uploads/.gitkeep
 data/backups/
+!assets/img/uploads/.htaccess

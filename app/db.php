@@ -20,6 +20,9 @@ function db(): PDO
     $pdo->exec('PRAGMA busy_timeout = 5000');
     // WAL seulement en local : sur un hébergement mutualisé (disque réseau) le mode classique est plus sûr.
     $pdo->exec('PRAGMA journal_mode = ' . (PHP_SAPI === 'cli-server' || getenv('FTN_WAL') ? 'WAL' : 'DELETE'));
+    // Cache mémoire (16 Mo) et tables temporaires en mémoire : listes et calculs plus rapides.
+    $pdo->exec('PRAGMA cache_size = -16000');
+    $pdo->exec('PRAGMA temp_store = MEMORY');
     if ($fresh || !table_exists($pdo, 'settings')) {
         db_install($pdo);
     }
@@ -27,7 +30,7 @@ function db(): PDO
     return $pdo;
 }
 
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 /** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
 function db_migrate(PDO $pdo): void
@@ -83,6 +86,7 @@ function db_auto_backup(): void
         $all = glob($dir . '/erp-*.sqlite') ?: [];
         sort($all);
         foreach (array_slice($all, 0, max(0, count($all) - 14)) as $old) @unlink($old);
+        db()->exec('PRAGMA optimize'); // statistiques à jour pour le choix des index, une fois par jour
     } catch (Throwable $e) {
         error_log('[ERP] sauvegarde automatique : ' . $e->getMessage());
     }

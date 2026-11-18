@@ -116,13 +116,17 @@ function login_attempt(string $username, string $password): ?string
     $fails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE (username = ? OR ip = ?) AND at > ?', [mb_strtolower($username), $ip, $since]);
     if ($fails >= 8) return 'Trop de tentatives. Réessayez dans 10 minutes.';
     $u = one('SELECT * FROM users WHERE username = ? AND active = 1', [$username]);
-    if (!$u || !password_verify($password, $u['password_hash'])) {
+    // Même temps de calcul que l'identifiant existe ou non : on ne peut pas deviner les comptes.
+    $hash = $u['password_hash'] ?? '$2y$10$7rTq0sF8M3nR6pQe1bWfIuJ9yH2kL5vC4xZ8aD0gN3mP6oS1tU2wO';
+    $ok = password_verify($password, $hash) && $u;
+    if (!$ok) {
         insert('login_attempts', ['username' => mb_strtolower($username), 'ip' => $ip, 'at' => time()]);
         return 'Identifiant ou mot de passe incorrect.';
     }
     q('DELETE FROM login_attempts WHERE username = ? OR at < ?', [mb_strtolower($username), $since]);
     session_regenerate_id(true);
     $_SESSION['uid'] = (int)$u['id'];
+    $_SESSION['seen'] = time();
     unset($_SESSION['csrf']);
     q('UPDATE users SET last_login = ? WHERE id = ?', [now(), $u['id']]);
     if (password_needs_rehash($u['password_hash'], PASSWORD_DEFAULT)) {
