@@ -48,7 +48,6 @@ layout_start('X — assistant IA', 'x', ['wide' => true]);
     <textarea rows="2" data-x-q placeholder="Votre question… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)" aria-label="Votre question"></textarea>
     <button class="btn primary" data-x-send><?= icon('send') ?><span>Envoyer</span></button>
   </form>
-  <p class="hint">X fonctionne entièrement dans l’ERP : rien n’est envoyé à l’extérieur, sans clé ni abonnement. Il comprend aussi quelques mots en tunisien (9adeh, bi3na, flous…).</p>
 </section>
 <?php
 layout_end(['x.js']);
