@@ -262,6 +262,71 @@ const SHIP_STATUS = [
     'retour' => 'Retour / échec', 'annulee' => 'Annulée',
 ];
 
+/** Où se trouve la marchandise d'une livraison. */
+const SHIP_HOLDERS = [
+    'depart' => 'Au départ (showroom / dépôt)', 'transporteur' => 'Chez le transporteur', 'technicien' => 'Chez le technicien',
+    'client' => 'Chez le client', 'retour' => 'En retour vers le dépôt',
+];
+
+const REPAIR_STATUS = ['nouveau' => 'Nouvelle demande', 'en_cours' => 'En cours', 'repare' => 'Réparé', 'annule' => 'Annulé'];
+const REPAIR_KINDS = ['reparation' => 'Réparation payante', 'sav' => 'SAV (sous garantie)'];
+const REPAIR_PLACES = ['domicile' => 'Chez le client', 'atelier' => 'À l’atelier'];
+
+/**
+ * Devine le gouvernorat d'une adresse tunisienne (« GAFSA HAY ESSOUROUR » -> Gafsa, « Boumhel » -> Ben Arous).
+ * Les villes de province passent avant les quartiers du Grand Tunis. Retourne '' si rien n'est reconnu.
+ */
+function guess_gouvernorat(string $text): string
+{
+    $s = '_' . slug_key($text) . '_';
+    if ($s === '__') return '';
+    static $map = [
+        'Médenine' => ['medenine', 'mednine', 'djerba', 'jerba', 'midoun', 'houmt_souk', 'ajim', 'zarzis', 'zerzis', 'ben_guerdane', 'ben_guerden', 'ben_geuerden',
+            'beni_khedache'],
+        'Mahdia' => ['mahdia', 'mahdeya', 'salakta', 'ksour_essaf', 'ksour_essef', 'kssour_essif', 'ksour_essif', 'el_jem', 'eljem', 'chebba', 'souassi'],
+        'Monastir' => ['monastir', 'ksar_hlel', 'moknine', 'mokenine', 'bembla', 'mestir', 'teboulba', 'ksar_hellal', 'sahline', 'jemmal', 'bekalta', 'bkalta', 'mnara',
+            'zeramdine', 'zermedine', 'zermdine'],
+        'Sousse' => ['sousse', 'sahloul', 'msaken', 'akouda', 'kalaa_kebira', 'enfidha', 'nfidha', 'nfitha', 'sidi_bou_ali', 'bouhsina', 'hergla', 'kantaoui'],
+        'Sfax' => ['sfax', 'sakiet_ezzit', 'sakiet_eddaier', 'mahres', 'jebeniana', 'thyna'],
+        'Gabès' => ['gabes', 'mareth', 'el_hamma', 'matmata'],
+        'Gafsa' => ['gafsa', 'metlaoui', 'redeyef', 'moulares', 'el_ksar', 'mdhilla', 'sned'],
+        'Tozeur' => ['tozeur', 'touzeur', 'nefta', 'degache', 'hamet_jrid', 'hammet_jrid', 'tamerza'],
+        'Kébili' => ['kebili', 'gbeli', 'douz', 'souk_lahad'],
+        'Tataouine' => ['tataouine', 'remada', 'ghomrassen'],
+        'Sidi Bouzid' => ['sidi_bouzid', 'meknassy', 'meknesi', 'elmeknesi', 'regueb', 'jelma', 'mezzouna', 'bir_el_hafey'],
+        'Kasserine' => ['kasserine', 'sbeitla', 'sbitla', 'feriana', 'thala', 'foussana'],
+        'Kairouan' => ['kairouan', 'kairaouan', 'haffouz', 'sbikha', 'oueslatia', 'bouhajla'],
+        'Siliana' => ['siliana', 'bouarada', 'makther', 'makthar', 'bou_arada', 'gaafour'],
+        'Le Kef' => ['le_kef', 'el_kef', 'kef', 'tajerouine', 'dahmani', 'sers'],
+        'Jendouba' => ['jendouba', 'jandouba', 'boussalem', 'bou_salem', 'tabarka', 'tbarka', 'ain_draham', 'ain_drahim', 'ghardimaou', 'ghar_dima', 'fernana'],
+        'Béja' => ['beja', 'testour', 'medjez', 'nefza', 'teboursouk'],
+        'Bizerte' => ['bizerte', 'benzart', 'menzel_jemil', 'manzel_jemil', 'menzel_bourguiba', 'zarzouna', 'ras_jbal', 'ras_jebel', 'mateur', 'el_alia',
+            'sajnene', 'sejnane', 'ghar_el_melh', 'bni_nafa', 'utique', 'metline'],
+        'Zaghouan' => ['zaghouan', 'zaghwen', 'el_fahs', 'fahs', 'zriba', 'bir_mcherga'],
+        'Nabeul' => ['nabeul', 'hawaria', 'nebel', 'hammamet', 'hammamrt', 'korba', 'kelibia', 'menzel_temime', 'menzel_tmim', 'grombalia', 'grombelia', 'soliman',
+            'beni_khiar', 'bni_khiar', 'dar_chaabane', 'bou_argoub', 'menzel_bouzelfa', 'takelsa', 'beni_khalled', 'beni_khaled', 'haouaria'],
+        'Ben Arous' => ['ben_arous', 'morneg', 'borj_sedreyya', 'borj_sedria', 'benarous', 'boumhel', 'boumhal', 'bou_mhel', 'megrine', 'rades', 'hammam_lif', 'hammen_lif', 'hamem_lif', 'hamem_lit',
+            'hammam_chott', 'hamem_chat', 'ezzahra', 'zahra', 'fouchana', 'fouchena', 'mghira', 'mourouj', 'yasminet', 'mohamedia', 'mhamdeyya', 'mhamdia',
+            'mornag', 'naassen', 'borj_cedria', 'nouvelle_medina', 'madina_jadida', 'medina_jedida'],
+        'La Manouba' => ['manouba', 'wed_ellil', 'tebourba', 'tbourba', 'taborba', 'denden', 'dandan', 'danden', 'oued_ellil', 'wed_lil', 'oued_lil', 'douar_hicher',
+            'mornaguia', 'jedaida', 'jdidia', 'borj_amri'],
+        'Ariana' => ['ariana', 'menzeh', 'mileha', 'milaha', 'kalaat_el_andaloss', 'soukra', 'sokra', 'chotrana', 'chtrana', 'ghazela', 'ghazala', 'ghazella', 'ghaella', 'lghazela', 'mnihla', 'raoued',
+            'kalaat_el_andalous', 'borj_louzir', 'borl_louzir', 'borj_touil', 'riadh_andalous', 'riadh_al_andalos', 'riyadh_al_andalos', 'riadh_el_andalous',
+            'ennasr', 'nasr', 'naser', 'enkhilet', 'nkhilet', 'sidi_amor', 'hay_nassim', 'ettadhamen', 'tadhamen', 'tathamen', 'jardin_el_manzah',
+            'jardins_el_menzah', 'manzah', 'menzah', 'enna7ly', 'ennahli'],
+        'Tunis' => ['tunis', 'wardeyya', 'khaznadar', 'marsa', 'gammarth', 'bardo', 'goulette', 'carthage', 'manar', 'aouina', 'la3ouina', 'kram', 'sidi_hassine', 'sidi_hsin', 'ouerdia',
+            'agba', 'omrane', 'omran', 'khadra', 'lkhadh', 'ezzouhour', 'zouhour', 'ibn_khaldoun', 'ibno_khouldoun', 'sidi_daoud', 'sidi_dawed',
+            'mutuelleville', 'lac', 'bab_saadoun', 'montfleury', 'cite_olympique'],
+    ];
+    foreach ($map as $gouv => $words) {
+        foreach ($words as $w) {
+            // Mots courts : mot entier seulement (« kef », « lac », « nasr »…)
+            if (strlen($w) <= 4 ? str_contains($s, '_' . $w . '_') : str_contains($s, $w)) return $gouv;
+        }
+    }
+    return '';
+}
+
 const PRIORITIES = ['basse' => 'Basse', 'normale' => 'Normale', 'haute' => 'Haute', 'urgente' => 'Urgente'];
 
 const MOVE_TYPES = [

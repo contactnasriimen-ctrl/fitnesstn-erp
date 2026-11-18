@@ -19,13 +19,39 @@ if ($a === 'template') ds_export((string)get('ds'), $filters, true);
 
 $tmpDir = DATA_DIR . '/tmp';
 if (!is_dir($tmpDir)) mkdir($tmpDir, 0775, true);
-foreach (glob($tmpDir . '/import-*.csv') ?: [] as $old) if (filemtime($old) < time() - 3600) @unlink($old);
+foreach (array_merge(glob($tmpDir . '/import-*.csv') ?: [], glob($tmpDir . '/excel-*.xlsx') ?: []) as $old) if (filemtime($old) < time() - 3600) @unlink($old);
+$canExcel = is_admin();
 
 $editableBoards = array_values(array_filter(all('SELECT * FROM boards ORDER BY position, id'), 'board_can_edit'));
 
 if (is_post()) {
     csrf_check();
     try {
+        if ($a === 'excel_upload' || $a === 'excel_commit') {
+            if (!$canExcel) throw new RuntimeException('Import réservé à l’administrateur.');
+            require_once APP_ROOT . '/app/excel_import.php';
+            if ($a === 'excel_upload') {
+                $f = $_FILES['file'] ?? null;
+                if (!$f || $f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) throw new RuntimeException('Choisissez un fichier Excel (.xlsx).');
+                if ($f['size'] > 15 * 1024 * 1024) throw new RuntimeException('Fichier trop volumineux (15 Mo maximum).');
+                if (!preg_match('/\.xlsx$/i', $f['name']) || !xlsx_is_file($f['tmp_name'])) throw new RuntimeException('Le fichier doit être un classeur Excel .xlsx (dans Excel : Fichier › Enregistrer sous › Classeur Excel).');
+                $token = bin2hex(random_bytes(8));
+                move_uploaded_file($f['tmp_name'], "$tmpDir/excel-$token.xlsx");
+                $report = xl_import("$tmpDir/excel-$token.xlsx", false);
+                $_SESSION['excel'][$token] = ['name' => $f['name'], 'report' => $report];
+                redirect(url('io', ['a' => 'excel_preview', 't' => $token]));
+            }
+            $token = preg_replace('/[^a-f0-9]/', '', (string)post('t'));
+            $job = $_SESSION['excel'][$token] ?? null;
+            $file = "$tmpDir/excel-$token.xlsx";
+            if (!$job || !is_file($file)) throw new RuntimeException('Import expiré : envoyez à nouveau le fichier.');
+            $r = xl_import($file, true, $job['report']['kind']);
+            @unlink($file);
+            unset($_SESSION['excel'][$token]);
+            $created = implode(', ', array_map(fn($k, $n) => "$n $k", array_keys($r['created']), $r['created']));
+            flash('ok', 'Fichier « ' . $job['name'] . ' » importé : ' . ($created ?: 'rien de nouveau') . ($r['updated'] ? ", {$r['updated']} mise(s) à jour" : '') . ($r['unchanged'] ? ", {$r['unchanged']} ligne(s) déjà présentes" : '') . '.');
+            redirect(url(['ventes' => 'sales', 'paiements' => 'deliveries', 'reparations' => 'repairs'][$r['kind']], $r['kind'] === 'paiements' ? ['status' => 'toutes'] : []));
+        }
         if ($a === 'upload') {
             $key = (string)post('ds');
             $d = $all[$key] ?? null;
@@ -33,7 +59,7 @@ if (is_post()) {
             $f = $_FILES['file'] ?? null;
             if (!$f || $f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) throw new RuntimeException('Choisissez un fichier CSV.');
             if ($f['size'] > 10 * 1024 * 1024) throw new RuntimeException('Fichier trop volumineux (10 Mo maximum).');
-            if (!preg_match('/\.(csv|txt)$/i', $f['name'])) throw new RuntimeException('Le fichier doit être au format CSV (.csv). Dans Excel : Fichier › Enregistrer sous › CSV UTF-8.');
+            if (!preg_match('/\.(csv|txt|xlsx)$/i', $f['name'])) throw new RuntimeException('Le fichier doit être au format CSV (.csv) ou Excel (.xlsx).');
             $token = bin2hex(random_bytes(8));
             move_uploaded_file($f['tmp_name'], "$tmpDir/import-$token.csv");
             $opts = [
@@ -63,6 +89,51 @@ if (is_post()) {
         flash('err', $e->getMessage());
         redirect(url('io', ['ds' => post('ds') ?: null]));
     }
+}
+
+/* ---------- Aperçu d'un fichier Excel FitnessTN ---------- */
+
+if ($a === 'excel_preview') {
+    $token = preg_replace('/[^a-f0-9]/', '', (string)get('t'));
+    $job = $_SESSION['excel'][$token] ?? null;
+    if (!$job || !$canExcel) redirect(url('io'));
+    $r = $job['report'];
+    $new = array_sum($r['created']);
+    layout_start('Vérification de l’import Excel', 'io');
+    ?>
+    <section class="card">
+      <h2><?= icon('upload', 'ic lg') ?> <?= e($r['label']) ?> — <?= e($job['name']) ?></h2>
+      <p class="muted">Simulation terminée : <b>rien n’a encore été modifié</b>. Vérifiez puis confirmez.</p>
+      <div class="grid4 kpis">
+        <div class="kpi"><span>Lignes lues</span><b><?= (int)$r['rows'] ?></b><small><?= count($r['sheets']) ?> feuille(s)<?= $r['skipped'] ? ' · ' . (int)$r['skipped'] . ' ligne(s) de total ignorée(s)' : '' ?></small></div>
+        <div class="kpi"><span>À créer</span><b class="pos"><?= $new ?></b><small><?= e(implode(' · ', array_map(fn($k, $n) => "$n $k", array_keys($r['created']), $r['created']))) ?: '—' ?></small></div>
+        <div class="kpi"><span>Mises à jour</span><b><?= (int)$r['updated'] ?></b><small><?= (int)$r['unchanged'] ?> ligne(s) déjà importée(s), inchangée(s)</small></div>
+        <div class="kpi"><span><?= $r['kind'] === 'reparations' ? 'Déjà encaissé (réparations)' : ($r['kind'] === 'ventes' ? 'Montant des ventes' : 'Montant transporté') ?></span><b><?= money0($r['amount']) ?></b></div>
+      </div>
+      <?php if ($r['sheets']): ?><p class="small muted"><b>Feuilles :</b> <?= e(implode(' · ', array_map(fn($k, $n) => trim($k) . " ($n)", array_keys($r['sheets']), $r['sheets']))) ?></p><?php endif; ?>
+      <?php if ($r['kind'] === 'ventes'): ?>
+        <p class="hint">Chaque ligne devient une vente du showroom de Tunis, numérotée <b>XL-26-…</b>, payée en contre-remboursement si un transporteur est cité (sinon en espèces), sans toucher au stock ni aux caisses. Les livraisons gardent le transporteur, le technicien et les frais. Importez ensuite le fichier « PAIEMENT » : les retours et les montants non reçus seront rapprochés de ces ventes.</p>
+      <?php elseif ($r['kind'] === 'paiements'): ?>
+        <p class="hint">Chaque ligne devient une livraison avec son transporteur, son n° de suivi et l’argent à récupérer. « Payé » = argent reçu ; « RETOUR » = retour ; vide = en attente. Une ligne qui correspond à une vente déjà importée (même client, même montant) complète cette vente au lieu d’en créer une autre.</p>
+      <?php else: ?>
+        <p class="hint">Chaque ligne devient une fiche « Réparations & SAV » (client, machine, panne, réparateur, statut, montant). Les clients sont retrouvés par téléphone ou créés.</p>
+      <?php endif; ?>
+      <?php if ($r['unmatched']): ?>
+        <details><summary class="small"><b><?= count($r['unmatched']) ?> désignation(s)</b> non reliée(s) à un produit du catalogue (gardées telles quelles)</summary>
+          <p class="small muted"><?= e(implode(' · ', array_map(fn($k, $n) => $k . ($n > 1 ? " ×$n" : ''), array_keys($r['unmatched']), $r['unmatched']))) ?></p></details>
+      <?php endif; ?>
+      <?php if ($r['warnings']): ?>
+        <details><summary class="small"><b><?= count($r['warnings']) ?> remarque(s)</b></summary><ul class="errors"><?php foreach ($r['warnings'] as $w) echo '<li>' . e($w) . '</li>'; ?></ul></details>
+      <?php endif; ?>
+      <form method="post" action="<?= e(url('io', ['a' => 'excel_commit'])) ?>" class="row-actions">
+        <?= csrf_field() ?><input type="hidden" name="t" value="<?= e($token) ?>">
+        <a class="btn ghost" href="<?= e(url('io')) ?>">Annuler</a>
+        <button class="btn primary" <?= ($new + (int)$r['updated']) ? '' : 'disabled' ?>><?= icon('check') ?>Confirmer l’import</button>
+      </form>
+    </section>
+    <?php
+    layout_end();
+    exit;
 }
 
 /* ---------- Aperçu avant import ---------- */
@@ -104,9 +175,21 @@ if ($a === 'preview') {
 /* ---------- Centre d'import / export ---------- */
 
 $scope = scope_loc();
-layout_start('Import / Export CSV', 'io');
+layout_start('Import / Export', 'io');
 ?>
-<p class="lead">Les fichiers exportés s’ouvrent directement dans Excel (UTF-8, séparateur point-virgule). Pour importer, partez d’un export ou du modèle, modifiez-le puis renvoyez-le : un aperçu est toujours affiché avant d’enregistrer.</p>
+<p class="lead">Les fichiers exportés s’ouvrent directement dans Excel. Pour importer, envoyez un fichier CSV ou Excel (.xlsx) : un aperçu est toujours affiché avant d’enregistrer.</p>
+<?php if ($canExcel): ?>
+  <section class="card io-card focus" id="excel">
+    <h2><?= icon('upload') ?> Vos fichiers Excel FitnessTN</h2>
+    <p class="muted small">Envoyez tels quels vos classeurs <b>« VENTE GRAND TUNIS »</b> (toutes les feuilles de mois), <b>« PAIEMENT »</b> (transporteurs) et <b>« RÉPARATION ET SERVICE APRÈS VENTE »</b> : le type est reconnu automatiquement.
+      Vous pouvez renvoyer un fichier complété plus tard : les lignes déjà importées ne sont pas dupliquées, et les changements (payé, réparé…) sont mis à jour.</p>
+    <form method="post" enctype="multipart/form-data" action="<?= e(url('io', ['a' => 'excel_upload'])) ?>" class="io-import">
+      <?= csrf_field() ?>
+      <input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+      <div class="row-actions"><button class="btn sm primary"><?= icon('upload') ?>Vérifier le fichier</button></div>
+    </form>
+  </section>
+<?php endif; ?>
 <div class="io-grid">
 <?php foreach ($all as $key => $d):
     $canExp = ds_can($d, 'export');
@@ -130,7 +213,7 @@ layout_start('Import / Export CSV', 'io');
     <?php if ($canImp): ?>
       <form method="post" enctype="multipart/form-data" action="<?= e(url('io', ['a' => 'upload'])) ?>" class="io-import">
         <?= csrf_field() ?><input type="hidden" name="ds" value="<?= e($key) ?>">
-        <input type="file" name="file" accept=".csv,text/csv" required>
+        <input type="file" name="file" accept=".csv,.xlsx,text/csv" required>
         <?php if ($key === 'produits'): ?>
           <label>Colonne « Stock » de l’export du site vers<select name="stock_location"><?= opt(location_options(), '', true, 'Ne pas importer le stock') ?></select></label>
         <?php elseif ($key === 'stock'): ?>

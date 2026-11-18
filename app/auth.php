@@ -19,6 +19,7 @@ const PERMS = [
         'deliveries.import', 'carriers.view', 'tasks', 'finance.view', 'expenses.edit', 'expenses.export',
         'expenses.import', 'sessions.export', 'payments.export', 'clients.view', 'clients.edit', 'clients.export', 'clients.import',
         'tasks.export', 'tasks.import', 'campaigns.view', 'io', 'invoices.view', 'invoices.edit', 'invoices.export',
+        'repairs.view', 'repairs.edit', 'repairs.export',
     ],
     'marketing' => [
         'dashboard', 'products.view', 'products.export', 'stock.view', 'stock.export', 'tasks', 'tasks.export', 'tasks.import',
@@ -27,7 +28,7 @@ const PERMS = [
     ],
     // Livreur : tous les showrooms ; change le statut des livraisons, consulte ventes, devis, factures,
     // clients, produits et stock sans rien modifier (pas de caisse, de finances ni de prix d'achat).
-    'livreur' => ['deliveries.view', 'deliveries.status', 'sales.view', 'invoices.view', 'clients.view', 'products.view', 'stock.view'],
+    'livreur' => ['deliveries.view', 'deliveries.status', 'sales.view', 'invoices.view', 'clients.view', 'products.view', 'stock.view', 'repairs.view'],
 ];
 
 /** Première page accessible au profil connecté (tableau de bord, ou Livraisons pour un livreur). */

@@ -105,6 +105,20 @@ if ($role !== 'marketing') {
 if ($negStock && can('stock.move')) $alerts[] = ['warn', "$negStock produit(s) avec un stock négatif : un inventaire est nécessaire.", url('stock', ['show' => 'negatif']), 'Voir'];
 if ($lowStock && can('stock.move')) $alerts[] = ['warn', "$lowStock produit(s) sous le stock minimum.", url('stock', ['show' => 'bas']), 'Voir'];
 if ($lateTasks) $alerts[] = ['err', "$lateTasks tâche(s) en retard.", url('tasks'), 'Voir'];
+// Alertes logistiques et SAV
+if (can('deliveries.view') && $role !== 'marketing') {
+    $sl = $scope ? ' AND location_id = ' . (int)$scope : '';
+    $stuck = (int)val("SELECT COUNT(*) FROM shipments WHERE status = 'en_cours' AND holder = 'transporteur' AND COALESCE(updated_at, created_at) < ?$sl", [date('Y-m-d H:i:s', strtotime('-7 days'))]);
+    if ($stuck) $alerts[] = ['warn', "$stuck livraison(s) : la marchandise est chez le transporteur depuis plus de 7 jours sans être livrée.", url('deliveries', ['status' => 'en_cours', 'holder' => 'transporteur']), 'Relancer'];
+    $back = (int)val("SELECT COUNT(*) FROM shipments WHERE status = 'retour' AND holder = 'retour'$sl");
+    if ($back) $alerts[] = ['warn', "$back retour(s) en route vers le dépôt : vérifiez la réception de la marchandise.", url('deliveries', ['status' => 'retour', 'holder' => 'retour']), 'Voir'];
+}
+if (can('repairs.view')) {
+    $rl = $scope ? ' AND location_id = ' . (int)$scope : '';
+    $rep = one("SELECT SUM(status = 'nouveau') n, SUM(status = 'en_cours') c, SUM(appointment IS NOT NULL AND date(appointment) = ?) today FROM repairs WHERE 1$rl", [$today]);
+    if ((int)$rep['today']) $alerts[] = ['info', (int)$rep['today'] . ' rendez-vous de réparation aujourd’hui.', url('repairs'), 'Voir'];
+    if ((int)$rep['n'] + (int)$rep['c']) $alerts[] = ['info', (int)$rep['n'] . ' demande(s) de réparation à planifier, ' . (int)$rep['c'] . ' en cours.', url('repairs'), 'Réparations'];
+}
 if (can('invoices.view')) {
     $dl = $scope ? ' AND location_id = ' . (int)$scope : '';
     $od = one("SELECT COUNT(*) n, COALESCE(SUM(net - paid),0) t FROM documents WHERE type = 'facture' AND status IN ('emise','partielle') AND due_date < ?$dl", [$today]);
@@ -113,10 +127,18 @@ if (can('invoices.view')) {
     if ((int)$acc['n']) $alerts[] = ['info', (int)$acc['n'] . ' devis accepté(s) à facturer (' . money0($acc['t']) . ').', url('quotes', ['status' => 'accepte', 'from' => '2000-01-01']), 'Facturer'];
 }
 ?>
+<?php if ($role === 'admin'): ?>
+  <form class="x-ask" method="get" action="index.php">
+    <input type="hidden" name="r" value="x">
+    <span class="x-logo sm">X</span>
+    <input name="q" placeholder="Demandez à X : « Quel transporteur nous doit le plus d’argent ? », « Ventes de BT 200+ en octobre ? »…" aria-label="Question pour X" autocomplete="off">
+    <button class="btn sm primary"><?= icon('send') ?>Demander</button>
+  </form>
+<?php endif; ?>
 <?php if ($alerts): ?>
   <div class="alerts">
     <?php foreach ($alerts as [$tone, $msg, $href, $label]): ?>
-      <div class="alert <?= e($tone) ?>"><?= icon($tone === 'info' ? (str_contains($msg, 'devis') ? 'quote' : 'truck') : 'alert') ?><span><?= e($msg) ?></span><a href="<?= e($href) ?>"><?= e($label) ?></a></div>
+      <div class="alert <?= e($tone) ?>"><?= icon($tone === 'info' ? (str_contains($msg, 'devis') ? 'quote' : (str_contains($msg, 'réparation') ? 'tool' : 'truck')) : 'alert') ?><span><?= e($msg) ?></span><a href="<?= e($href) ?>"><?= e($label) ?></a></div>
     <?php endforeach; ?>
   </div>
 <?php endif; ?>

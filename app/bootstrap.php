@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 define('DATA_DIR', APP_ROOT . '/data');
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 date_default_timezone_set('Africa/Tunis');
 mb_internal_encoding('UTF-8');
@@ -16,6 +16,7 @@ require __DIR__ . '/auth.php';
 require __DIR__ . '/catalog.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/documents.php';
+require __DIR__ . '/sav.php';
 require __DIR__ . '/layout.php';
 require __DIR__ . '/charts.php';
 

@@ -263,13 +263,18 @@ function datasets(): array
         'help' => 'Mise à jour en masse par N° de livraison (statut, n° de suivi, frais…). Sans N°, une nouvelle livraison est créée. Statuts : ' . implode(', ', SHIP_STATUS) . '.',
         'cols' => ['number' => 'N° livraison', 'sale' => 'N° vente', 'loc' => 'Départ', 'recipient' => 'Destinataire', 'phone' => 'Téléphone', 'gouvernorat' => 'Gouvernorat',
             'city' => 'Ville', 'address' => 'Adresse', 'carrier' => 'Transporteur', 'tracking' => 'N° de suivi', 'status' => 'Statut', 'planned_date' => 'Date prévue',
-            'delivered_at' => 'Livrée le', 'fee' => 'Coût transport', 'cod_amount' => 'À encaisser', 'cod_collected' => 'Encaissé', 'note' => 'Note'],
+            'delivered_at' => 'Livrée le', 'fee' => 'Coût transport', 'cod_amount' => 'À encaisser', 'cod_collected' => 'Encaissé', 'note' => 'Note',
+            'goods' => 'Marchandise', 'holder' => 'Où est la marchandise', 'technician' => 'Technicien', 'technician_fee' => 'Prime technicien',
+            'client_fee' => 'Transport payé par le client'],
         'rows' => function (array $f) {
             $loc = export_scope($f);
-            foreach (all('SELECT sh.*, s.number sale, l.code loc, ca.name carrier FROM shipments sh LEFT JOIN sales s ON s.id = sh.sale_id LEFT JOIN locations l ON l.id = sh.location_id
+            foreach (all('SELECT sh.*, s.number sale, l.code loc, ca.name carrier,
+                    (SELECT GROUP_CONCAT(CASE WHEN si.qty > 1 THEN si.qty || \' × \' ELSE \'\' END || si.label, \' + \') FROM shipment_items si WHERE si.shipment_id = sh.id) goods
+                FROM shipments sh LEFT JOIN sales s ON s.id = sh.sale_id LEFT JOIN locations l ON l.id = sh.location_id
                 LEFT JOIN carriers ca ON ca.id = sh.carrier_id' . ($loc ? ' WHERE sh.location_id = ' . (int)$loc : '') . ' ORDER BY sh.id') as $s) {
                 yield [$s['number'], $s['sale'], $s['loc'], $s['recipient'], $s['phone'], $s['gouvernorat'], $s['city'], $s['address'], $s['carrier'], $s['tracking'],
-                    SHIP_STATUS[$s['status']] ?? $s['status'], $s['planned_date'], $s['delivered_at'], csv_money($s['fee']), csv_money($s['cod_amount']), csv_bool($s['cod_collected']), $s['note']];
+                    SHIP_STATUS[$s['status']] ?? $s['status'], $s['planned_date'], $s['delivered_at'], csv_money($s['fee']), csv_money($s['cod_amount']), csv_bool($s['cod_collected']), $s['note'],
+                    $s['goods'], ship_holder_label($s, $s['carrier']), $s['technician'], csv_money($s['technician_fee']), csv_money($s['client_fee'])];
             }
         },
         'import_row' => function (array $r) {
@@ -278,8 +283,13 @@ function datasets(): array
             if ($num !== '' && !$ex) throw new RuntimeException("Livraison $num introuvable.");
             if ($ex && !can_loc($ex['location_id'] !== null ? (int)$ex['location_id'] : null)) throw new RuntimeException("Livraison $num : autre showroom.");
             $data = ['updated_at' => now()];
-            foreach (['recipient', 'gouvernorat', 'city', 'address', 'tracking', 'note'] as $k) if (isset($r[$k]) && trim($r[$k]) !== '') $data[$k] = trim($r[$k]);
+            foreach (['recipient', 'gouvernorat', 'city', 'address', 'tracking', 'note', 'technician'] as $k) if (isset($r[$k]) && trim($r[$k]) !== '') $data[$k] = trim($r[$k]);
             if (trim($r['phone'] ?? '') !== '') $data['phone'] = normalize_phone($r['phone']);
+            foreach (['technician_fee', 'client_fee'] as $k) if (trim($r[$k] ?? '') !== '') $data[$k] = max(0, parse_money($r[$k]) ?? 0);
+            if (trim($r['holder'] ?? '') !== '') {
+                $h = key_from_label(SHIP_HOLDERS, preg_replace('/\s+—.*$/u', '', trim($r['holder'])), '');
+                if ($h !== '') $data['holder'] = $h;
+            }
             if (trim($r['status'] ?? '') !== '') {
                 $st = key_from_label(SHIP_STATUS, $r['status'], '');
                 if ($st === '') throw new RuntimeException('Statut « ' . $r['status'] . ' » inconnu.');
@@ -295,7 +305,10 @@ function datasets(): array
             if (trim($r['fee'] ?? '') !== '') $data['fee'] = max(0, parse_money($r['fee']) ?? 0);
             if (trim($r['cod_amount'] ?? '') !== '' && !($ex['cod_collected'] ?? 0)) $data['cod_amount'] = max(0, parse_money($r['cod_amount']) ?? 0);
             if ($ex) {
+                $changed = isset($data['status']) && $data['status'] !== $ex['status'];
+                if ($changed && !isset($data['holder'])) $data['holder'] = ship_holder_for_status($data['status']);
                 update('shipments', $data, 'id = ?', [$ex['id']]);
+                if ($changed) shipment_event((int)$ex['id'], SHIP_STATUS[$data['status']] . ' (import)', $data['status'] === 'livree' ? 'ok' : 'info');
                 if (csv_yes($r['cod_collected'] ?? '') && !$ex['cod_collected']) shipment_collect(one('SELECT * FROM shipments WHERE id = ?', [$ex['id']]));
                 return 'updated';
             }
@@ -437,6 +450,22 @@ function datasets(): array
             },
         ];
     }
+
+    $ds['reparations'] = [
+        'label' => 'Réparations & SAV', 'icon' => 'tool', 'export' => 'repairs.export', 'import' => null, 'loc' => true,
+        'help' => 'Toutes les fiches de réparation et de SAV. Pour importer votre fichier Excel « RÉPARATION ET SERVICE APRÈS VENTE », utilisez la carte « Vos fichiers Excel ».',
+        'cols' => ['number' => 'N°', 'received_at' => 'Date de la demande', 'kind' => 'Type', 'client' => 'Client', 'phone' => 'Téléphone', 'phone2' => 'Autre téléphone',
+            'gouvernorat' => 'Gouvernorat', 'address' => 'Adresse', 'product' => 'Machine', 'issue' => 'Panne', 'technician' => 'Réparateur', 'status' => 'Statut',
+            'place' => 'Lieu', 'appointment' => 'Rendez-vous', 'amount' => 'Montant', 'paid' => 'Payé', 'done_at' => 'Réparé le', 'note' => 'Note'],
+        'rows' => function (array $f) {
+            $loc = export_scope($f);
+            foreach (all('SELECT * FROM repairs' . ($loc ? ' WHERE location_id = ' . (int)$loc : '') . ' ORDER BY id') as $r) {
+                yield [$r['number'], $r['received_at'], REPAIR_KINDS[$r['kind']] ?? $r['kind'], $r['client_name'], $r['phone'], $r['phone2'], $r['gouvernorat'], $r['address'],
+                    $r['product'], $r['issue'], $r['technician'], REPAIR_STATUS[$r['status']] ?? $r['status'], REPAIR_PLACES[$r['place']] ?? $r['place'], $r['appointment'],
+                    csv_money($r['amount']), csv_money($r['paid']), $r['done_at'], $r['note']];
+            }
+        },
+    ];
     return $ds;
 }
 

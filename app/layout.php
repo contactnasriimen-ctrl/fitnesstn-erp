@@ -48,6 +48,8 @@ function icon(string $name, string $cls = 'ic'): string
         'copy' => '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
         'sidebar' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 10l-2 2 2 2"/>',
         'enter' => '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/>',
+        'tool' => '<path d="M14.5 5.5a4 4 0 0 0 4.9 4.9l-9.2 9.2a2.1 2.1 0 0 1-3-3l9.2-9.2a4 4 0 0 0-1.9-1.9z"/><path d="M14.5 5.5l2.6-2.6a4 4 0 0 1 4 4l-2.6 2.6"/>',
+        'spark' => '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
     ];
     return '<svg class="' . e($cls) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . ($p[$name] ?? '') . '</svg>';
 }
@@ -56,6 +58,7 @@ function nav_items(): array
 {
     return [
         ['dashboard', 'Tableau de bord', 'home', 'dashboard'],
+        ['x', 'X — assistant IA', 'spark', 'x'],
         ['-', 'Ventes', '', ''],
         ['pos', 'Caisse', 'pos', 'pos'],
         ['sales', 'Ventes', 'receipt', 'sales.view'],
@@ -66,12 +69,13 @@ function nav_items(): array
         ['products', 'Produits', 'box', 'products.view'],
         ['stock', 'Stock', 'stock', 'stock.view'],
         ['deliveries', 'Livraisons', 'truck', 'deliveries.view'],
+        ['repairs', 'Réparations & SAV', 'tool', 'repairs.view'],
         ['-', 'Équipe & marketing', '', ''],
         ['tasks', 'Tâches', 'tasks', 'tasks'],
         ['marketing', 'Marketing', 'megaphone', 'campaigns.view'],
         ['-', 'Gestion', '', ''],
         ['finances', 'Finances', 'wallet', 'finance.view'],
-        ['io', 'Import / Export CSV', 'swap', 'io'],
+        ['io', 'Import / Export', 'swap', 'io'],
         ['-', 'Administration', '', ''],
         ['users', 'Utilisateurs', 'usercog', 'users'],
         ['settings', 'Paramètres', 'settings', 'settings'],
@@ -103,6 +107,8 @@ function quick_actions(): array
         $a[] = ['Facture', url('invoices', ['a' => 'edit']), 'invoice'];
     }
     if (can('clients.edit')) $a[] = ['Client', url('clients', ['a' => 'edit']), 'users'];
+    if (can('repairs.edit')) $a[] = ['Réparation', url('repairs', ['a' => 'edit']), 'tool'];
+    if (can('deliveries.edit')) $a[] = ['Livraison', url('deliveries', ['a' => 'edit']), 'truck'];
     if (can('expenses.edit')) $a[] = ['Dépense', url('finances', ['a' => 'expenses']), 'wallet'];
     if (can('tasks')) $a[] = ['Tâche', url('tasks'), 'tasks'];
     return $a;
@@ -120,6 +126,7 @@ function layout_start(string $title, string $active, array $opts = []): void
         . '<title>' . e($title) . ' · ERP ' . e($company) . '</title>'
         . '<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">'
         . '<link rel="stylesheet" href="assets/css/app.css?v=' . APP_VERSION . filemtime(APP_ROOT . '/assets/css/app.css') . '">'
+        . '<link rel="stylesheet" href="assets/css/v13.css?v=' . APP_VERSION . filemtime(APP_ROOT . '/assets/css/v13.css') . '">'
         . '<meta name="csrf" content="' . e(csrf_token()) . '">'
         // Menu replié : appliqué avant l'affichage pour éviter un saut de mise en page.
         . '<script>try{if(localStorage.getItem("ftn-side")==="mini")document.documentElement.classList.add("side-mini")}catch(e){}</script>'
@@ -160,7 +167,7 @@ function layout_start(string $title, string $active, array $opts = []): void
     echo '<dialog class="palette" id="palette" aria-label="Recherche"><div class="pal-box"><div class="pal-in">' . icon('search') . '<input type="search" placeholder="Rechercher un client, un produit, un devis, une facture, une page…" autocomplete="off" data-palette-q><kbd>Échap</kbd></div>'
         . '<div class="pal-list" data-palette-list role="listbox"></div><div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> naviguer</span><span><kbd>Entrée</kbd> ouvrir</span></div></div>'
         . '<div hidden>' . implode('', array_map(fn($i) => '<span data-icon-src="' . $i . '">' . icon($i) . '</span>',
-            array_unique(array_merge(array_column($palette, 'i'), ['users', 'quote', 'invoice', 'receipt', 'box'])))) . '</div>'
+            array_unique(array_merge(array_column($palette, 'i'), ['users', 'quote', 'invoice', 'receipt', 'box', 'truck', 'tool', 'spark'])))) . '</div>'
         . '<script type="application/json" data-palette-json>' . json_encode(['items' => $palette, 'search' => url('search')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) . '</script></dialog>';
     if (!empty($u['initial_password']) && $active !== 'account') {
         echo '<div class="banner">' . icon('lock') . '<span>Vous utilisez encore le mot de passe initial. <a href="' . e(url('account')) . '">Choisissez votre propre mot de passe</a>.</span></div>';

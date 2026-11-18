@@ -24,6 +24,7 @@ $rate = fn($r) => rtrim(rtrim(number_format((float)$r, 1, ',', ''), '0'), ',') .
 $ht = fn(int $ttc, $r) => (int)round($ttc / (1 + (float)$r / 100));
 $bank = array_filter(['Banque' => setting('bank_name', ''), 'RIB' => setting('bank_rib', ''), 'IBAN' => setting('bank_iban', ''), 'BIC' => setting('bank_bic', '')]);
 $notice = trim((string)setting('warranty_notice', ''));
+$mf = trim((string)setting('company_mf', ''));
 $stamp = (string)setting('doc_stamp', '');
 if ($stamp !== '' && !is_file(APP_ROOT . '/' . $stamp)) $stamp = '';
 $warrantyText = function (array $it) use ($d): string {
@@ -49,8 +50,13 @@ $warrantyText = function (array $it) use ($d): string {
 <?php endif; ?>
 <main class="paper">
   <header class="d-head">
-    <div class="d-logo">
-      <img src="assets/img/logo-fitnesstn.svg" alt="<?= e($company) ?>">
+    <div class="d-brand">
+      <div class="d-logo">
+        <img src="assets/img/logo-fitnesstn.svg" alt="<?= e($company) ?>">
+      </div>
+      <?php if ($mf !== ''): ?>
+        <div class="d-mf"><span class="ar" lang="ar" dir="rtl">المعرف الجبائي</span><span class="fr">Matricule Fiscal</span><b><?= e($mf) ?></b></div>
+      <?php endif; ?>
     </div>
     <div class="d-title">
       <h1><?= $title ?></h1>
@@ -71,7 +77,7 @@ $warrantyText = function (array $it) use ($d): string {
         <?php if ($address): ?><?= nl2br(e($address)) ?><br><?php endif; ?>
         <?php if ($loc && setting('company_address', '')): ?>Showroom : <?= e($loc['name']) ?><br><?php endif; ?>
         Tél. <?= e(($loc['phone'] ?? '') ?: setting('company_phone', '')) ?><?= setting('company_email') ? ' · ' . e(setting('company_email')) : '' ?><br>
-        <?php if (setting('company_mf')): ?>MF : <b><?= e(setting('company_mf')) ?></b><?php endif; ?></p>
+        <?php if ($mf !== ''): ?>Matricule fiscal : <b><?= e($mf) ?></b><?php endif; ?></p>
     </div>
     <div class="to">
       <h3><?= $isQuote ? 'Devis établi pour' : 'Facturé à' ?></h3>
@@ -79,7 +85,7 @@ $warrantyText = function (array $it) use ($d): string {
         <?php if ($d['client_address']): ?><?= e($d['client_address']) ?><br><?php endif; ?>
         <?php if ($d['client_phone']): ?>Tél. <?= e($d['client_phone']) ?><br><?php endif; ?>
         <?php if ($d['client_email']): ?><?= e($d['client_email']) ?><br><?php endif; ?>
-        <?php if ($d['client_mf']): ?>MF : <b><?= e($d['client_mf']) ?></b><?php endif; ?></p>
+        <?php if ($d['client_mf']): ?>Matricule fiscal : <b><?= e($d['client_mf']) ?></b><?php endif; ?></p>
     </div>
   </section>
 

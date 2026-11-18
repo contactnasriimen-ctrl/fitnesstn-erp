@@ -40,7 +40,9 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 ## Qui voit quoi
 
 - **Administrateur** : tout, les deux showrooms, marges et prix d’achat, annulation des ventes, utilisateurs, paramètres, journal d’activité.
-- **Responsable showroom** : caisse, ventes, clôtures, dépenses et livraisons de *son* showroom ; stock de tous les sites (mouvements pour le sien) ; clients ; tâches de son showroom.
+- **Responsable showroom** : caisse, ventes, clôtures, dépenses, livraisons et réparations & SAV de *son* showroom ; stock de tous les sites (mouvements pour le sien) ; clients ; tâches de son showroom.
+- **Livreur** : livraisons de tous les showrooms (statut seulement), réparations, ventes, devis, factures, clients, produits et stock en consultation.
+- **X (assistant IA)** : administrateur uniquement.
 - **Marketing** : campagnes (budget, leads, ventes générées, CA/dépense), statistiques d’origine des ventes, tâches marketing, catalogue et clients en lecture.
 
 ## Les modules
@@ -48,10 +50,14 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 - **Caisse** : ouverture avec fond de caisse, recherche / scan code-barres, prix promo automatiques, prix « sur devis » saisi en caisse, remise (plafonnée à 20 % pour les responsables), paiements multiples (espèces avec monnaie à rendre, carte, chèque, virement, D17/Flouci), reste à payer (facilité), livraison avec paiement à la livraison, ticket 80 mm et facture A4, sorties de caisse, clôture avec billetage et rapport Z.
 - **Devis & factures** : saisie avec recherche client / produit, prix HT ou TTC au choix, remise par ligne ou globale, TVA par ligne, timbre fiscal, montant en lettres. Suivi des devis (brouillon, envoyé, accepté, refusé), transformation en facture en un clic, facture établie depuis une vente de caisse. Paiements partiels, relances (factures en retard, devis expirés), envoi par WhatsApp, impression / PDF A4 avec coordonnées bancaires et avertissement de garantie FR / AR. Numérotation 000019/26 continuable depuis les factures papier. Cachet et signature imprimés sur les documents. Les paiements de factures comptent dans les Finances, et ceux en espèces dans la caisse ouverte du showroom (clôture). Relance WhatsApp des factures impayées depuis Finances › À encaisser ; la caisse propose la facture officielle à la fin d’une vente.
 - **Stock** : par showroom et dépôt, entrées / sorties / transferts sur plusieurs lignes, inventaire, historique de tous les mouvements.
-- **Livraisons & transporteurs** : statut, n° de suivi, coût, argent encaissé chez les clients et encore à récupérer auprès des transporteurs.
+- **Livraisons & transporteurs** : trajet (départ → gouvernorat / adresse d’arrivée), marchandise transportée, **où est la marchandise maintenant** (au dépôt, chez le transporteur, chez le technicien, chez le client, en retour — mis à jour avec le statut), historique de chaque étape, technicien / installateur et sa prime, transport payé par le client, coût du transporteur, n° de suivi, argent encaissé chez les clients et encore à récupérer auprès des transporteurs. Le gouvernorat est deviné d’après l’adresse.
+- **Réparations & SAV** : demandes des clients (machine, panne, réparation payante ou SAV sous garantie, à domicile ou à l’atelier), réparateur, rendez-vous, statut (nouvelle, en cours, réparée, annulée), montant et encaissement, message WhatsApp au client selon l’étape. Le client est retrouvé par son téléphone, avec ses achats et ses réparations précédentes.
+- **X — assistant IA** (administrateur) : répond à toute question sur les données (ventes, livraisons, transporteurs, réparations, stock, clients, finances) en interrogeant la base en lecture seule. Utilise Claude (Anthropic) : clé API à coller dans Paramètres › Agent X. Les questions et les données consultées sont envoyées à l’API d’Anthropic.
 - **Tâches** : un tableau Kanban par équipe (Marketing, Showroom Tunis, Showroom Nabeul, Direction) ; tâches et colonnes modifiables, glisser-déposer.
 - **Finances** : synthèse (CA, encaissements, dépenses, marge, résultat estimé), clôtures de caisse, dépenses, reste à encaisser.
-- **Import / Export CSV** : 15 jeux de données, ouverts directement par Excel. Chaque import montre un aperçu avant d’enregistrer. L’export WooCommerce du site est reconnu tel quel.
+- **Import / Export** : 16 jeux de données, ouverts directement par Excel ; les imports acceptent CSV et Excel (.xlsx). Chaque import montre un aperçu avant d’enregistrer. L’export WooCommerce du site est reconnu tel quel.
+- **Vos fichiers Excel** (administrateur, Import / Export) : les classeurs « VENTE GRAND TUNIS » (une feuille par mois), « PAIEMENT » (transporteurs) et « RÉPARATION ET SERVICE APRÈS VENTE » s’importent tels quels. Ventes numérotées XL-26-…, sans toucher au stock ni aux caisses ; retours = ventes annulées ; paiements des transporteurs rapprochés des ventes. Un fichier complété peut être renvoyé : rien n’est dupliqué et les changements (payé, réparé…) sont mis à jour.
+- **Devis & factures** : le matricule fiscal de l’entreprise est imprimé dans un cadre « المعرف الجبائي / Matricule Fiscal » en haut de chaque document.
 
 ## Avant l’utilisation réelle
 
@@ -69,6 +75,7 @@ Après l’envoi des fichiers, ouvrez **`/check.php`** : la page vérifie PHP, S
 ## Pour le développeur
 
 - PHP 8.0+ (pdo_sqlite, mbstring), aucune dépendance. Montants stockés en millimes.
-- `node tests/e2e.mjs` : 107 vérifications de bout en bout (base temporaire).
+- `node tests/e2e.mjs` : 176 vérifications de bout en bout (base temporaire).
+- Agent X : `assets/js/x.js` + le SDK officiel Anthropic embarqué (`assets/js/vendor/anthropic-sdk-<version>.js`, reconstruit par `node tools/vendor-sdk.mjs` dans le projet `fitnesstn-erp-demo`). Modèle `claude-opus-5-5` (effort moyen), avec reprise automatique côté serveur en cas de refus (`fallbacks: "default"`). Les requêtes SQL passent par `index.php?r=x&a=sql`, connexion SQLite en lecture seule, réservée à l’administrateur.
 - `node tests/shots.mjs` : captures d’écran sur données de démonstration (`tests/out/`).
 - Mot de passe oublié : `php tools/reset_password.php admin`.

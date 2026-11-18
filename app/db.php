@@ -27,7 +27,7 @@ function db(): PDO
     return $pdo;
 }
 
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
 function db_migrate(PDO $pdo): void
@@ -47,6 +47,7 @@ function db_migrate(PDO $pdo): void
             'invoice_prefix' => '', 'quote_prefix' => 'DV-',
             'invoice_terms' => 'Paiement comptant à la livraison', 'invoice_transport' => 'Gratuit', 'invoice_warranty' => 'Selon le produit',
             'quote_validity_days' => '15', 'invoice_due_days' => '0', 'doc_color' => '#145c54', 'doc_stamp' => '', 'auto_backup' => '1',
+            'x_api_key' => '',
             'bank_name' => '', 'bank_rib' => '', 'bank_iban' => '', 'bank_bic' => '',
             'warranty_notice' => "Toute utilisation hors du cadre domestique (usage professionnel, salle de sport, collectivité, kiné…) ou non conforme aux conditions normales d’utilisation entraîne l’annulation immédiate de la garantie.\n"
                 . 'يلغى الضمان تلقائيا في حالة ثبوت استخدام الجهاز خارج النطاق المنزلي الخاص أو في ظروف لا تتوافق مع معايير الاستخدام المنصوص عليها.',
@@ -269,7 +270,7 @@ function db_install(PDO $pdo): void
     }
 
     $carriers = [
-        ['Livraison interne FitnessTN', 'interne', '', 'Grand Tunis, Cap Bon', 1, 'Camion FitnessTN : livraison + installation + démonstration.'],
+        ['Livraison interne FitnessTN', 'interne', '', 'Grand Tunis, Cap Bon', 1, 'Camion FitnessTN : livraison + installation + mise en service.'],
         ['Rapid-Poste', 'externe', '', 'Toute la Tunisie', 1, 'Petits colis (accessoires).'],
         ['Aramex', 'externe', '', 'Toute la Tunisie', 1, ''],
     ];
@@ -301,7 +302,7 @@ function db_install(PDO $pdo): void
     $now = now();
     $starter = [
         ['marketing', 'Planifier les publications de la semaine', 'Facebook, Instagram, TikTok : 1 vidéo produit + 1 avis client + 1 promo.', 'haute', 0],
-        ['marketing', 'Vidéo démonstration du tapis BT 500+ en showroom', 'Format vertical 30 s, sous-titres en darija.', 'normale', 0],
+        ['marketing', 'Vidéo de présentation du tapis BT 500+ en showroom', 'Format vertical 30 s, sous-titres en darija.', 'normale', 0],
         ['marketing', 'Mettre à jour les prix promo sur le site', '', 'normale', 1],
         ['loc:1', 'Inventaire : compter les tapis de course', 'Saisir les quantités dans Stock › Inventaire.', 'haute', 0],
         ['loc:1', 'Rappeler les clients en attente de livraison', '', 'normale', 0],

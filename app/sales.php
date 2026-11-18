@@ -286,13 +286,89 @@ function sale_cancel(int $saleId, string $reason): void
 
 /* ---------- Livraisons ---------- */
 
-function shipment_create(array $d): int
+/**
+ * Crée une livraison. $items : [['product_id' => …, 'label' => …, 'qty' => …]] ; sans lignes et avec une vente liée,
+ * la marchandise de la vente est reprise automatiquement.
+ */
+function shipment_create(array $d, ?array $items = null, string $eventText = 'Livraison créée'): int
 {
     $d['number'] = 'LIV-' . date('y') . '-' . str_pad((string)next_seq('ship:' . date('Y')), 5, '0', STR_PAD_LEFT);
     $d += ['status' => 'a_preparer', 'user_id' => user()['id'] ?? null, 'created_at' => now(), 'updated_at' => now()];
+    $d += ['holder' => ship_holder_for_status($d['status'])];
     $id = insert('shipments', $d);
+    if ($items === null && !empty($d['sale_id'])) {
+        $items = all('SELECT product_id, label, qty FROM sale_items WHERE sale_id = ?', [$d['sale_id']]);
+    }
+    shipment_set_items($id, $items ?? []);
+    $carrierName = !empty($d['carrier_id']) ? (string)val('SELECT name FROM carriers WHERE id = ?', [$d['carrier_id']]) : '';
+    shipment_event($id, $eventText . ($carrierName !== '' ? ' · transporteur : ' . $carrierName : ''), 'info', $d['created_at']);
     audit('livraison créée', 'shipment', $id, $d['number']);
     return $id;
+}
+
+/** Remplace la marchandise d'une livraison. */
+function shipment_set_items(int $shipmentId, array $items): void
+{
+    q('DELETE FROM shipment_items WHERE shipment_id = ?', [$shipmentId]);
+    foreach ($items as $it) {
+        $label = trim((string)($it['label'] ?? ''));
+        $pid = !empty($it['product_id']) ? (int)$it['product_id'] : null;
+        if ($pid && $label === '') $label = (string)val('SELECT name FROM products WHERE id = ?', [$pid]);
+        if ($label === '') continue;
+        insert('shipment_items', ['shipment_id' => $shipmentId, 'product_id' => $pid, 'label' => mb_substr($label, 0, 160), 'qty' => max(1, min(999, (int)($it['qty'] ?? 1)))]);
+    }
+}
+
+function shipment_items(int $shipmentId): array
+{
+    return all('SELECT * FROM shipment_items WHERE shipment_id = ? ORDER BY id', [$shipmentId]);
+}
+
+/** « 2 × BT 200+ · Huile lubrifiant » */
+function shipment_items_text(array $items, int $max = 3): string
+{
+    $parts = [];
+    foreach (array_slice($items, 0, $max) as $it) $parts[] = ((int)$it['qty'] > 1 ? (int)$it['qty'] . ' × ' : '') . $it['label'];
+    if (count($items) > $max) $parts[] = '+' . (count($items) - $max);
+    return implode(' · ', $parts);
+}
+
+/** Ajoute une étape à l'historique d'une livraison. */
+function shipment_event(int $shipmentId, string $text, string $kind = 'info', ?string $at = null): void
+{
+    insert('shipment_events', ['shipment_id' => $shipmentId, 'at' => $at ?: now(), 'kind' => $kind, 'text' => mb_substr($text, 0, 300), 'user_id' => user()['id'] ?? null]);
+}
+
+/** Où se trouve normalement la marchandise pour un statut donné. */
+function ship_holder_for_status(string $status): string
+{
+    return ['en_cours' => 'transporteur', 'livree' => 'client', 'retour' => 'retour'][$status] ?? 'depart';
+}
+
+/** Libellé « Chez le transporteur (TPS) ». */
+function ship_holder_label(array $sh, ?string $carrier = null): string
+{
+    $label = SHIP_HOLDERS[$sh['holder'] ?? 'depart'] ?? '';
+    $extra = trim((string)($sh['holder_note'] ?? ''));
+    if ($extra === '' && ($sh['holder'] ?? '') === 'transporteur' && $carrier) $extra = $carrier;
+    if ($extra === '' && ($sh['holder'] ?? '') === 'technicien' && !empty($sh['technician'])) $extra = $sh['technician'];
+    return $label . ($extra !== '' ? ' — ' . $extra : '');
+}
+
+/** Change le statut (et, sauf précision, le lieu de la marchandise) en gardant une trace dans l'historique. */
+function shipment_set_status(array $sh, string $status, ?string $holder = null, string $note = ''): void
+{
+    if (!isset(SHIP_STATUS[$status])) throw new RuntimeException('Statut invalide.');
+    $holder = $holder !== null && isset(SHIP_HOLDERS[$holder]) ? $holder : ($status !== $sh['status'] ? ship_holder_for_status($status) : $sh['holder']);
+    $data = ['status' => $status, 'holder' => $holder, 'updated_at' => now(),
+        'delivered_at' => $status === 'livree' ? ($sh['delivered_at'] ?: now()) : null];
+    if ($holder !== $sh['holder']) $data['holder_note'] = '';
+    update('shipments', $data, 'id = ?', [$sh['id']]);
+    if ($status !== $sh['status']) {
+        shipment_event((int)$sh['id'], SHIP_STATUS[$status] . ($note !== '' ? ' · ' . $note : ''), $status === 'livree' ? 'ok' : ($status === 'retour' || $status === 'annulee' ? 'err' : 'info'));
+    } elseif ($holder !== $sh['holder']) {
+        shipment_event((int)$sh['id'], 'Marchandise : ' . mb_strtolower(SHIP_HOLDERS[$holder]));
+    }
 }
 
 /** Contre-remboursement encaissé par le transporteur : crée le paiement sur la vente liée. */
@@ -308,6 +384,7 @@ function shipment_collect(array $sh): void
             }
         }
         update('shipments', ['cod_collected' => 1, 'updated_at' => now()], 'id = ?', [$sh['id']]);
+        if ((int)$sh['cod_amount'] > 0) shipment_event((int)$sh['id'], 'Argent récupéré : ' . money($sh['cod_amount']), 'ok');
     });
 }
 

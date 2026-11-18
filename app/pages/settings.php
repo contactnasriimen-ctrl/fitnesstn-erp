@@ -33,6 +33,20 @@ if ($a === 'backup_file') {
 if (is_post()) {
     csrf_check();
     try {
+        if ($a === 'x') {
+            $k = trim((string)post('x_api_key'));
+            if (post('remove_key')) {
+                set_setting('x_api_key', '');
+                audit('agent X : clé API retirée', 'settings');
+                flash('ok', 'Clé API retirée : X est désactivé.');
+            } elseif ($k !== '') {
+                if (!preg_match('/^sk-ant-[A-Za-z0-9_\-]{20,}$/', $k)) throw new RuntimeException('Clé API non reconnue : elle commence par « sk-ant- » (console.anthropic.com › API Keys).');
+                set_setting('x_api_key', $k);
+                audit('agent X : clé API enregistrée', 'settings');
+                flash('ok', 'Clé enregistrée : X est prêt. Posez-lui une question !');
+                redirect(url('x'));
+            }
+        }
         if ($a === 'backups') {
             set_setting('auto_backup', post('auto_backup') ? '1' : '0');
             flash('ok', post('auto_backup') ? 'Sauvegarde automatique activée.' : 'Sauvegarde automatique désactivée.');
@@ -186,6 +200,16 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
     <form id="locf<?= (int)$l['id'] ?>" method="post" action="<?= e(url('settings', ['a' => 'location'])) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$l['id'] ?>"></form>
   <?php endforeach; ?>
 </section>
+<?php $xKey = (string)$s('x_api_key', ''); ?>
+<form method="post" action="<?= e(url('settings', ['a' => 'x'])) ?>" class="card form-grid" id="agent-x" autocomplete="off">
+  <?= csrf_field() ?>
+  <h2 class="span2">Agent X — assistant IA</h2>
+  <p class="span2 hint">X répond aux questions de la direction sur toutes les données de l’ERP (lecture seule). Il utilise Claude d’Anthropic : créez une clé sur
+    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> (facturation à l’usage). Les questions et les données consultées sont envoyées à l’API d’Anthropic. Seul l’administrateur peut utiliser X.</p>
+  <label class="span2">Clé API Anthropic<input name="x_api_key" type="password" value="" placeholder="<?= $xKey !== '' ? e('Clé enregistrée : ' . substr($xKey, 0, 10) . '…' . substr($xKey, -4) . ' — collez une nouvelle clé pour la remplacer') : 'sk-ant-…' ?>" spellcheck="false"></label>
+  <?php if ($xKey !== ''): ?><label class="check"><input type="checkbox" name="remove_key" value="1"> Retirer la clé (désactive X)</label><?php endif; ?>
+  <div class="span2 row-actions"><?php if ($xKey !== ''): ?><a class="btn ghost" href="<?= e(url('x')) ?>"><?= icon('spark') ?>Ouvrir X</a><?php endif; ?><button class="btn primary"><?= icon('check') ?>Enregistrer</button></div>
+</form>
 <?php $backups = glob(backup_dir() . '/erp-*.sqlite') ?: []; rsort($backups); ?>
 <form method="post" action="<?= e(url('settings', ['a' => 'backups'])) ?>" class="card" id="sauvegardes">
   <?= csrf_field() ?>

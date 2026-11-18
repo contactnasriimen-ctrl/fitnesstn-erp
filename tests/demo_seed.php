@@ -1,5 +1,5 @@
 <?php
-// Données de démonstration pour les captures d'écran (base temporaire uniquement, jamais la vraie base).
+// Données d'exemple (version en ligne et captures d'écran) : base temporaire uniquement, jamais la vraie base.
 // Usage : FTN_DB=chemin FTN_SEED_PASSWORD=… php tests/demo_seed.php
 declare(strict_types=1);
 
@@ -16,7 +16,7 @@ foreach ([1, 2, 3] as $loc) foreach ($prods as $p) stock_change((int)$p['id'], $
 
 $camp = insert('campaigns', ['name' => 'Rentrée tapis de course — Facebook', 'channel' => 'facebook', 'status' => 'active', 'budget' => 800000, 'spent' => 520000,
     'leads' => 46, 'messages' => 130, 'reach' => 38500, 'start_date' => date('Y-m-d', strtotime('-20 days')), 'end_date' => date('Y-m-d', strtotime('+10 days')), 'created_at' => now()]);
-insert('campaigns', ['name' => 'Vidéos démo vélos — TikTok', 'channel' => 'tiktok', 'status' => 'active', 'budget' => 400000, 'spent' => 150000, 'leads' => 21,
+insert('campaigns', ['name' => 'Vidéos vélos en showroom — TikTok', 'channel' => 'tiktok', 'status' => 'active', 'budget' => 400000, 'spent' => 150000, 'leads' => 21,
     'messages' => 64, 'reach' => 52000, 'start_date' => date('Y-m-d', strtotime('-8 days')), 'end_date' => date('Y-m-d', strtotime('+20 days')), 'created_at' => now()]);
 
 $names = ['Samia Ben Ali', 'Mounira Trabelsi', 'Ines Gharbi', 'Karim Jaziri', 'Yasmine Ayari', 'Hela Mansouri', 'Rim Chaabane', 'Leila Ferchichi', 'Nadia Bouazizi', 'Sonia Hammami'];
@@ -64,11 +64,12 @@ q('UPDATE products SET cost = CAST(price * 0.62 AS INTEGER) WHERE price > 0');
 q("UPDATE tasks SET assignee_id = 2, due_date = date('now', '+2 days') WHERE board_id = 2");
 q("UPDATE tasks SET assignee_id = 4, due_date = date('now', '-1 days') WHERE board_id = 1 AND priority = 'haute'");
 
-// Devis & factures fictifs (clients professionnels)
-foreach (['company_legal_name' => 'STE DÉMO FITNESS', 'company_address' => 'Avenue de la Démo, Ariana 2080', 'bank_name' => 'Banque Démo — Agence Ariana',
-    'bank_rib' => '00 000 0000000000 000 00', 'bank_iban' => 'TN00 0000 0000 0000 0000 0000', 'bank_bic' => 'DEMOTNTT'] as $k => $v) set_setting($k, $v);
+// Devis & factures d'exemple (clients professionnels fictifs). Identité réelle de l'entreprise ; coordonnées bancaires
+// laissées vides (à saisir dans Paramètres) pour ne jamais imprimer un RIB inventé.
+foreach (['company_legal_name' => 'STE TUNISIA FITNESS', 'company_address' => '57 avenue de l’Environnement, Ariana 2080', 'company_mf' => '1987691F/N/M/000',
+    'bank_name' => '', 'bank_rib' => '', 'bank_iban' => '', 'bank_bic' => ''] as $k => $v) set_setting($k, $v);
 $gym = ['name' => 'Salle Atlas Gym', 'phone' => '71 000 111', 'address' => 'Rue du Lac, Les Berges du Lac, Tunis', 'mf' => '0000001/B/M/000'];
-$hotel = ['name' => 'Hôtel Démo Hammamet', 'phone' => '72 000 222', 'address' => 'Zone touristique, Hammamet', 'mf' => '0000002/C/N/000'];
+$hotel = ['name' => 'Hôtel Les Jasmins Hammamet', 'phone' => '72 000 222', 'address' => 'Zone touristique, Hammamet', 'mf' => '0000002/C/N/000'];
 $line = fn(array $p, int $q, float $disc = 0) => ['product_id' => $p['id'], 'label' => $p['name'], 'qty' => $q, 'unit_price' => m_in(product_price($p)), 'discount_pct' => $disc, 'vat_rate' => 19];
 $doc = fn(int $id) => one('SELECT * FROM documents WHERE id = ?', [$id]);
 $mk = function (string $type, array $client, array $items, int $daysAgo, array $extra = []) use ($doc) {
@@ -83,7 +84,7 @@ if ($big && $small) {
     $inv2 = $mk('facture', $hotel, [$line($small[2 % count($small)], 6)], 40, ['stock' => true]);
     doc_add_payment($inv2, 'cheque', (int)$inv2['net'], 'Chèque n° 0001', date('Y-m-d', strtotime('-30 days')));
     $mk('facture', $gym, [$line($small[3 % count($small)], 4)], 35);
-    $mk('devis', ['name' => 'Club Sportif Démo', 'phone' => '73 000 333'], [$line($big[3 % count($big)], 1)], 25);
+    $mk('devis', ['name' => 'Club Sportif El Menzah', 'phone' => '73 000 333'], [$line($big[3 % count($big)], 1)], 25);
     $q1 = $mk('devis', $gym, [$line($big[0], 3, 5), $line($big[1 % count($big)], 2, 5), $line($small[0], 10)], 12);
     doc_set_status($q1, 'envoye');
     doc_set_status($doc((int)$q1['id']), 'accepte');
@@ -92,4 +93,4 @@ if ($big && $small) {
     doc_set_status($mk('devis', $hotel, [$line($big[2 % count($big)], 4), $line($small[1 % count($small)], 8)], 3), 'envoye');
 }
 
-echo "Démo prête : " . val('SELECT COUNT(*) FROM sales') . " ventes, " . val('SELECT COUNT(*) FROM documents') . " devis et factures\n";
+echo "Base d'exemple prête : " . val('SELECT COUNT(*) FROM sales') . " ventes, " . val('SELECT COUNT(*) FROM documents') . " devis et factures\n";

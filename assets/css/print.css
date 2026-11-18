@@ -133,3 +133,10 @@ body { margin: 0; font: 13px/1.4 "Segoe UI", system-ui, Arial, sans-serif; color
 .a4-head .brand h1 { display: none; }
 .d-logo { background: none; padding: 0; border-radius: 0; }
 .d-logo img { display: block; height: 78px; width: auto; }
+
+/* Matricule fiscal (comme sur le cachet : arabe / français / numéro) */
+.d-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.d-mf { display: inline-flex; flex-direction: column; align-items: center; min-width: 150px; border: 1.5px solid var(--ink); border-radius: 6px; padding: 3px 12px 4px; line-height: 1.25; text-align: center; }
+.d-mf .ar { font-family: "Segoe UI", Tahoma, "Arabic Typesetting", sans-serif; font-size: 12px; font-weight: 700; }
+.d-mf .fr { font-family: Georgia, "Times New Roman", serif; font-size: 12.5px; font-weight: 700; }
+.d-mf b { display: block; width: 100%; margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--ink); font-size: 13.5px; letter-spacing: .6px; font-variant-numeric: tabular-nums; }

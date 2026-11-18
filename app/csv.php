@@ -7,6 +7,9 @@ declare(strict_types=1);
  */
 function csv_read_file(string $file): array
 {
+    // Un classeur Excel (.xlsx) est lu directement : première feuille, première ligne = en-têtes.
+    require_once __DIR__ . '/xlsx.php';
+    if (xlsx_is_file($file)) return xlsx_as_csv($file);
     $raw = (string)file_get_contents($file);
     if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) $raw = substr($raw, 3);
     if (!mb_check_encoding($raw, 'UTF-8')) $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1252');
