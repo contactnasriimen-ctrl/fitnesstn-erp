@@ -77,6 +77,12 @@
 .x-note.warn { background: var(--warn-soft); color: var(--warn); }
 .x-form { display: flex; gap: 10px; align-items: flex-end; padding-top: 12px; border-top: 1px solid var(--line); }
 .x-form textarea { flex: 1; resize: vertical; min-height: 46px; max-height: 200px; margin: 0; }
+.x-period { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
+.x-period .ic { width: 14px; height: 14px; }
+.x-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.x-text b.up { color: var(--ok); }
+.x-text b.down { color: var(--err); }
+.x-text .x-sugg { margin: 6px 0 2px; }
 .x-ask { display: flex; gap: 10px; align-items: center; padding: 8px 8px 8px 12px; margin: 0 0 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .x-ask input { flex: 1; margin: 0; border: 0; box-shadow: none; background: transparent; min-width: 0; }
 .x-ask input:focus { outline: none; }

@@ -499,7 +499,7 @@ function xl_import_paiements(array $sheets, array &$rep): void
                 'delivered_at' => $status === 'livree' ? $date . ' 18:00:00' : null, 'import_ref' => $ref];
             $shId = null;
             if ($sale && ($sh = one('SELECT * FROM shipments WHERE sale_id = ? ORDER BY id LIMIT 1', [$sale['id']])) && !str_starts_with((string)$sh['import_ref'], 'paiement')) {
-                update('shipments', $data + ['cod_collected' => $collected, 'note' => trim($sh['note'] . ' · ' . $note . ' (fichier PAIEMENT)', ' ·'), 'updated_at' => now()], 'id = ?', [$sh['id']]);
+                update('shipments', $data + ['cod_collected' => $collected, 'note' => trim($sh['note'] . ' · ' . ($note !== '' ? $note : 'Payé') . (str_contains($note, 'PAIEMENT') ? '' : ' (fichier PAIEMENT)'), ' ·'), 'updated_at' => now()], 'id = ?', [$sh['id']]);
                 shipment_event((int)$sh['id'], 'Fichier PAIEMENT : ' . ($note ?: ($collected ? 'payé' : SHIP_STATUS[$status])) . ($carrierName ? ' · ' . $carrierName : ''), $collected ? 'ok' : 'info');
                 $shId = (int)$sh['id'];
                 xl_count($rep, 'livraisons rapprochées d’une vente');
