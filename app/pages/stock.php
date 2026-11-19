@@ -90,8 +90,8 @@ $tabsHtml = tabs(array_filter([
     'history' => ['Historique', url('stock', ['a' => 'history'])],
 ]), $a);
 $actions = '';
-if (can('stock.export')) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'stock'])) . '">' . icon('download') . 'Export CSV</a>';
-if ($admin) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'stock'])) . '">' . icon('upload') . 'Import CSV</a>';
+if (can('stock.export')) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'stock'])) . '">' . icon('download') . 'Exporter</a>';
+if ($admin) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'stock'])) . '">' . icon('upload') . 'Importer</a>';
 
 $productOptions = function (): string {
     $h = '<option value="">— Choisir un produit —</option>';
@@ -200,7 +200,7 @@ if ($a === 'history') {
     $page = max(1, (int)get('page', 1));
     $rows = all("SELECT m.*, pr.name, pr.sku, l.name loc, u.name user FROM stock_moves m JOIN products pr ON pr.id = m.product_id
         JOIN locations l ON l.id = m.location_id LEFT JOIN users u ON u.id = m.user_id WHERE $w ORDER BY m.id DESC LIMIT 100 OFFSET " . (($page - 1) * 100), $p);
-    layout_start('Stock', 'stock', ['actions' => (can('stock.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'mouvements', 'from' => $f['from'], 'to' => $f['to']])) . '">' . icon('download') . 'Export CSV</a>' : '')]);
+    layout_start('Stock', 'stock', ['actions' => (can('stock.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'mouvements', 'from' => $f['from'], 'to' => $f['to']])) . '">' . icon('download') . 'Exporter</a>' : '')]);
     echo $tabsHtml;
     ?>
     <form class="filters" method="get">

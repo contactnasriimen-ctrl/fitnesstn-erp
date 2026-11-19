@@ -203,8 +203,8 @@ if ($rows) {
 }
 
 $actions = '';
-if (can('products.export')) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'produits'])) . '">' . icon('download') . 'Export CSV</a>';
-if ($admin) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'produits'])) . '">' . icon('upload') . 'Import CSV</a>'
+if (can('products.export')) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'produits'])) . '">' . icon('download') . 'Exporter</a>';
+if ($admin) $actions .= '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'produits'])) . '">' . icon('upload') . 'Importer</a>'
     . '<a class="btn sm primary" href="' . e(url('products', ['a' => 'edit'])) . '">' . icon('plus') . 'Nouveau produit</a>';
 layout_start('Produits', 'products', ['actions' => $actions]);
 ?>

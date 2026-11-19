@@ -595,21 +595,22 @@ function x_answer_payments(array $c): string
     return $h . x_table(['Mode de paiement', 'Paiements', 'Montant', 'Part'], array_map(fn($k, $x) => [PAY_METHODS[$k] ?? $k, $x['n'], money0($x['t']), x_pct($x['t'], $tot)], array_keys($by), $by), [1, 2, 3]);
 }
 
+/** Reste à encaisser : même calcul que le tableau de bord et Finances (receivables_summary). */
 function x_receivables(): array
 {
-    return [
-        'Ventes avec reste à payer' => [(int)val("SELECT COALESCE(SUM(total - paid),0) FROM sales WHERE status = 'partielle'"), url('sales', ['status' => 'partielle'])],
-        'Factures non réglées' => [(int)val("SELECT COALESCE(SUM(net - paid),0) FROM documents WHERE type = 'facture' AND status IN ('emise','partielle')"), url('invoices', ['status' => 'open', 'from' => '2000-01-01'])],
-        'Chez les transporteurs (livré, pas reversé)' => [(int)val("SELECT COALESCE(SUM(cod_amount),0) FROM shipments WHERE status = 'livree' AND cod_collected = 0"), url('deliveries', ['status' => 'a_recuperer'])],
-        'Réparations terminées non payées' => [(int)val("SELECT COALESCE(SUM(amount - paid),0) FROM repairs WHERE status = 'repare' AND paid < amount"), url('repairs', ['status' => 'a_encaisser'])],
-    ];
+    $s = receivables_summary();
+    $links = ['clients' => url('finances', ['a' => 'receivables']), 'carriers' => url('deliveries', ['status' => 'a_recuperer']),
+        'invoices' => url('invoices', ['from' => '2000-01-01']), 'repairs' => url('repairs', ['status' => 'a_encaisser'])];
+    $out = [];
+    foreach ($links as $k => $href) $out[$s[$k]['label']] = [$s[$k]['t'], $href];
+    return $out;
 }
 
 function x_answer_receivables(array $c): string
 {
     $r = x_receivables();
     $tot = array_sum(array_column($r, 0));
-    $h = x_p('Il reste <b>' . money0($tot) . '</b> à encaisser au total.');
+    $h = x_p('Il reste <b>' . money0($tot) . '</b> à encaisser au total (même chiffre que le tableau de bord).');
     $h .= x_table(['Origine', 'Montant', ''], array_map(fn($k, $v) => [$k, money0($v[0]), x_raw($v[0] ? x_btn('Voir', $v[1]) : '')], array_keys($r), $r), [1]);
     $late = one("SELECT COUNT(*) n, COALESCE(SUM(net - paid),0) t FROM documents WHERE type = 'facture' AND status IN ('emise','partielle') AND due_date < ?", [today()]);
     if ((int)$late['n']) $h .= x_p('⚠ ' . (int)$late['n'] . ' facture(s) en retard de paiement : ' . money0($late['t']) . '.');

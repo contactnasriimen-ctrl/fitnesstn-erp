@@ -92,6 +92,34 @@ function client_upsert(array $c): ?int
     ]);
 }
 
+/* ---------- Reste à encaisser (même calcul partout : tableau de bord, Finances, X) ---------- */
+
+/**
+ * Argent dû à l'entreprise, sans double compte :
+ *  - clients : reste à payer des ventes, hors part déjà encaissée par un transporteur (comptée dans « transporteurs ») ;
+ *  - transporteurs : livraisons faites, argent encaissé chez le client mais pas encore reversé ;
+ *  - factures : factures hors caisse non réglées ;
+ *  - réparations : réparations terminées non payées.
+ */
+function receivables_summary(?int $loc = null): array
+{
+    $l = $loc ? ' AND location_id = ' . (int)$loc : '';
+    $sl = $loc ? ' AND s.location_id = ' . (int)$loc : '';
+    $c = one("SELECT COUNT(*) n, COALESCE(SUM(r),0) t FROM (SELECT MAX(0, (s.total - s.paid) - COALESCE((SELECT SUM(sh.cod_amount) FROM shipments sh
+        WHERE sh.sale_id = s.id AND sh.status = 'livree' AND sh.cod_collected = 0), 0)) r FROM sales s WHERE s.status = 'partielle'$sl) WHERE r > 0");
+    $k = one("SELECT COUNT(*) n, COALESCE(SUM(cod_amount),0) t FROM shipments WHERE status = 'livree' AND cod_collected = 0 AND cod_amount > 0$l");
+    $i = one("SELECT COUNT(*) n, COALESCE(SUM(net - paid),0) t FROM documents WHERE type = 'facture' AND sale_id IS NULL AND status IN ('emise','partielle')$l");
+    $r = one("SELECT COUNT(*) n, COALESCE(SUM(amount - paid),0) t FROM repairs WHERE status = 'repare' AND paid < amount$l");
+    $out = [
+        'clients' => ['t' => (int)$c['t'], 'n' => (int)$c['n'], 'label' => 'Clients (ventes avec reste à payer)'],
+        'carriers' => ['t' => (int)$k['t'], 'n' => (int)$k['n'], 'label' => 'Chez les transporteurs (livré, pas encore reversé)'],
+        'invoices' => ['t' => (int)$i['t'], 'n' => (int)$i['n'], 'label' => 'Factures non réglées'],
+        'repairs' => ['t' => (int)$r['t'], 'n' => (int)$r['n'], 'label' => 'Réparations terminées non payées'],
+    ];
+    $out['total'] = array_sum(array_column($out, 't'));
+    return $out;
+}
+
 /* ---------- Ventes ---------- */
 
 function sale_status(int $total, int $paid): string

@@ -26,9 +26,14 @@ $todayAll = $ca($today, $today);
 $month = $ca($monthStart, $today);
 $prev = $ca($prevStart, $prevSameDay);
 $basket = $month['n'] ? intdiv($month['t'] - $month['inv'], $month['n']) : 0;
-$receivable = (int)val("SELECT COALESCE(SUM(total - paid),0) FROM sales WHERE status = 'partielle' AND location_id IN ($locIn)")
-    + (int)val("SELECT COALESCE(SUM(net - paid),0) FROM documents WHERE type = 'facture' AND sale_id IS NULL AND status IN ('emise','partielle')" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
-$codOwed = (int)val("SELECT COALESCE(SUM(cod_amount),0) FROM shipments WHERE status = 'livree' AND cod_collected = 0" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
+// Même calcul que Finances › À encaisser et X
+$recv = receivables_summary($scope);
+$receivable = $recv['total'];
+$codOwed = $recv['carriers']['t'];
+$recvParts = [];
+foreach (['clients' => 'clients', 'carriers' => 'transporteurs', 'invoices' => 'factures', 'repairs' => 'réparations'] as $k => $word) {
+    if ($recv[$k]['t'] > 0) $recvParts[] = $word . ' ' . money0($recv[$k]['t']);
+}
 $shipOpen = (int)val("SELECT COUNT(*) FROM shipments WHERE status IN ('a_preparer','en_cours')" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
 $shipLate = (int)val("SELECT COUNT(*) FROM shipments WHERE status IN ('a_preparer','en_cours') AND planned_date < ?" . ($scope ? ' AND location_id = ' . (int)$scope : ''), [$today]);
 
@@ -105,7 +110,7 @@ if (can('repairs.view')) {
     <small><?php if ($delta !== null): ?><span class="<?= $delta >= 0 ? 'up' : 'down' ?>"><?= $delta >= 0 ? '▲' : '▼' ?> <?= pct(abs($delta)) ?></span> vs même période du mois dernier<?php else: ?>Pas de comparaison disponible<?php endif; ?></small></div>
   <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('receipt') ?></span><span>Ventes du mois</span><b><?= $month['n'] ?></b><small>Panier moyen <?= money0($basket) ?></small></div>
   <?php if ($role !== 'marketing'): ?>
-    <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('wallet') ?></span><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $codOwed ? 'dont ' . money0($codOwed) . ' chez les transporteurs' : 'Facilités, factures et paiements à la livraison' ?></small></div>
+    <a class="kpi with-ic kpi-link" href="<?= e(url('finances', ['a' => 'receivables'])) ?>"><span class="kpi-ic warn"><?= icon('wallet') ?></span><span>Reste à encaisser</span><b class="<?= $receivable ? 'warn-t' : '' ?>"><?= money0($receivable) ?></b><small><?= $recvParts ? e(implode(' · ', $recvParts)) : 'Rien à encaisser' ?></small></a>
   <?php else: ?>
     <div class="kpi with-ic"><span class="kpi-ic"><?= icon('megaphone') ?></span><span>Campagnes actives</span><b><?= count($activeCampaigns) ?></b><small>Dépensé : <?= money0(array_sum(array_column($activeCampaigns, 'spent'))) ?></small></div>
   <?php endif; ?>

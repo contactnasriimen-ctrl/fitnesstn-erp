@@ -78,7 +78,7 @@ if (is_post()) {
                 break;
             case 'delete':
                 doc_delete($d);
-                flash('ok', 'Devis supprimé.');
+                flash('ok', $isQuote ? 'Devis supprimé.' : 'Facture ' . $d['number'] . ' supprimée : son numéro sera repris par la prochaine facture.');
                 redirect(url($route));
             case 'internal_note':
                 update('documents', ['internal_note' => mb_substr((string)post('internal_note'), 0, 1000), 'updated_at' => now()], 'id = ?', [$d['id']]);
@@ -382,12 +382,26 @@ if ($a === 'view') {
           <?php elseif ($d['internal_note']): ?><p class="muted">Note interne : <?= e($d['internal_note']) ?></p><?php endif; ?>
         </section>
 
+        <?php if (!$isQuote && is_admin()): $delBlock = doc_invoice_delete_block($d); ?>
+          <details class="card danger-zone">
+            <summary>Supprimer cette facture</summary>
+            <?php if ($delBlock === null): ?>
+              <form method="post" action="<?= e(url($route, ['a' => 'delete'])) ?>" onsubmit="return confirm('Supprimer définitivement la facture <?= e($d['number']) ?> ? Son numéro sera repris par la prochaine facture.')">
+                <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
+                <p class="muted">C’est la dernière facture émise : elle peut être supprimée (erreur de saisie) et son numéro sera réutilisé<?= $d['stock_applied'] ? ' ; les articles sont remis en stock' : '' ?><?= $d['source_id'] ? ' ; le devis d’origine redevient « accepté »' : '' ?>.</p>
+                <button class="btn danger"><?= icon('trash') ?>Supprimer la facture</button>
+              </form>
+            <?php else: ?>
+              <p class="muted"><?= e($delBlock) ?></p>
+            <?php endif; ?>
+          </details>
+        <?php endif; ?>
         <?php if (!$isQuote && is_admin() && $d['status'] !== 'annulee'): ?>
           <details class="card danger-zone">
             <summary>Annuler cette facture</summary>
             <form method="post" action="<?= e(url($route, ['a' => 'cancel'])) ?>" onsubmit="return confirm('Annuler définitivement la facture <?= e($d['number']) ?> ?')">
               <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
-              <p class="muted">Le numéro reste attribué (une facture ne se supprime pas)<?= $d['stock_applied'] ? ' et les articles sont remis en stock' : '' ?>. Les paiements déjà reçus restent visibles.</p>
+              <p class="muted">Le numéro reste attribué (la facture reste dans la liste, marquée « annulée »)<?= $d['stock_applied'] ? ' et les articles sont remis en stock' : '' ?>. Les paiements déjà reçus restent visibles.</p>
               <label>Motif<input name="reason" required maxlength="300"></label>
               <button class="btn danger"><?= icon('x') ?>Annuler la facture</button>
             </form>
@@ -453,7 +467,7 @@ if ($isQuote) {
 }
 
 $exportParams = array_filter(['ds' => $isQuote ? 'devis' : 'factures', 'from' => $f['from'], 'to' => $f['to'], 'loc' => $f['loc'] ?: null]);
-$actions = (can('invoices.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Export CSV</a>' : '')
+$actions = (can('invoices.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Exporter</a>' : '')
     . (can('invoices.edit') ? '<a class="btn sm primary" href="' . e(url($route, ['a' => 'edit'])) . '">' . icon('plus') . ($isQuote ? 'Nouveau devis' : 'Nouvelle facture') . '</a>' : '');
 layout_start($isQuote ? 'Devis' : 'Factures', $route, ['actions' => $actions]);
 $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? null : ($f['loc'] ?: null), 'q' => $f['q']]);

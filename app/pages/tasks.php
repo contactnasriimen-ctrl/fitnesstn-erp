@@ -148,8 +148,8 @@ $today = today();
 $counts = [];
 foreach (all("SELECT t.board_id, COUNT(*) n FROM tasks t JOIN board_columns c ON c.id = t.column_id WHERE c.is_done = 0 GROUP BY t.board_id") as $c) $counts[$c['board_id']] = (int)$c['n'];
 
-$actions = (can('tasks.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'taches', 'board' => $board['id']])) . '">' . icon('download') . 'Export CSV</a>' : '')
-    . ($editable && can('tasks.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'taches', 'board' => $board['id']])) . '">' . icon('upload') . 'Import CSV</a>' : '')
+$actions = (can('tasks.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'taches', 'board' => $board['id']])) . '">' . icon('download') . 'Exporter</a>' : '')
+    . ($editable && can('tasks.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'taches', 'board' => $board['id']])) . '">' . icon('upload') . 'Importer</a>' : '')
     . ($editable ? '<button class="btn sm primary" type="button" data-new-task="' . (int)($cols[0]['id'] ?? 0) . '">' . icon('plus') . 'Nouvelle tâche</button>' : '');
 layout_start('Tâches', 'tasks', ['actions' => $actions, 'wide' => true]);
 ?>

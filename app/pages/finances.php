@@ -168,7 +168,7 @@ if ($a === 'sessions') {
     $rows = all("SELECT cs.*, l.name loc, u.name opener, (SELECT COUNT(*) FROM sales WHERE session_id = cs.id AND status <> 'annulee') n,
         (SELECT COALESCE(SUM(total),0) FROM sales WHERE session_id = cs.id AND status <> 'annulee') t
         FROM cash_sessions cs JOIN locations l ON l.id = cs.location_id LEFT JOIN users u ON u.id = cs.opened_by WHERE $where ORDER BY cs.id DESC", $p);
-    $actions = can('sessions.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'caisses', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Export CSV</a>' : '';
+    $actions = can('sessions.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'caisses', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Exporter</a>' : '';
     layout_start('Finances', 'finances', ['actions' => $actions]);
     echo $tabsHtml . $periodForm('sessions');
     $sumDiff = array_sum(array_map(fn($r) => (int)$r['difference'], $rows));
@@ -220,8 +220,8 @@ if ($a === 'expenses' || $a === 'expense_edit') {
     if ($cat !== '') { $where .= ' AND e.category = ?'; $p[] = $cat; }
     $rows = all("SELECT e.*, l.name loc, u.name user FROM expenses e LEFT JOIN locations l ON l.id = e.location_id LEFT JOIN users u ON u.id = e.user_id WHERE $where ORDER BY e.date DESC, e.id DESC LIMIT 500", $p);
     $byCat = all("SELECT e.category, SUM(e.amount) t FROM expenses e WHERE $where GROUP BY e.category ORDER BY t DESC", $p);
-    $actions = (can('expenses.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'depenses', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Export CSV</a>' : '')
-        . (can('expenses.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'depenses'])) . '">' . icon('upload') . 'Import CSV</a>' : '')
+    $actions = (can('expenses.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'depenses', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Exporter</a>' : '')
+        . (can('expenses.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'depenses'])) . '">' . icon('upload') . 'Importer</a>' : '')
         . (can('expenses.edit') ? '<a class="btn sm primary" href="' . e(url('finances', ['a' => 'expense_edit'])) . '">' . icon('plus') . 'Nouvelle dépense</a>' : '');
     layout_start('Finances', 'finances', ['actions' => $actions]);
     echo $tabsHtml;
@@ -286,7 +286,7 @@ if ($a === 'receivables') {
         WHERE sh.status = 'livree' AND sh.cod_collected = 0 AND sh.cod_amount > 0" . ($locF ? ' AND sh.location_id = ' . (int)$locF : '') . ' ORDER BY sh.delivered_at');
     $invs = can('invoices.view') ? all("SELECT d.*, l.name loc, CAST(julianday('now') - julianday(d.date) AS INTEGER) age FROM documents d LEFT JOIN locations l ON l.id = d.location_id
         WHERE d.type = 'facture' AND d.sale_id IS NULL AND d.status IN ('emise','partielle')" . ($locF ? ' AND d.location_id = ' . (int)$locF : '') . ' ORDER BY COALESCE(d.due_date, d.date)') : [];
-    $actions = can('sales.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'creances'])) . '">' . icon('download') . 'Export CSV</a>' : '';
+    $actions = can('sales.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'creances'])) . '">' . icon('download') . 'Exporter</a>' : '';
     layout_start('Finances', 'finances', ['actions' => $actions]);
     echo $tabsHtml;
     $company = setting('company_name', 'FitnessTN');
@@ -299,11 +299,14 @@ if ($a === 'receivables') {
         return '<a class="btn xs wa" target="_blank" rel="noopener" href="https://wa.me/216' . e($d['client_phone']) . '?text=' . e(rawurlencode($msg)) . '">' . icon('chat') . 'Relancer</a>';
     };
     ?>
+    <?php $recv = receivables_summary($locF ?: null);
+    $repOwed = can('repairs.view') ? all("SELECT * FROM repairs WHERE status = 'repare' AND paid < amount" . ($locF ? ' AND location_id = ' . (int)$locF : '') . ' ORDER BY id DESC') : []; ?>
+    <p class="lead">Total à encaisser : <b><?= money0($recv['total']) ?></b> — même calcul que le tableau de bord et X, sans compter deux fois l’argent déjà chez un transporteur.</p>
     <div class="grid4 kpis">
-      <div class="kpi"><span>Reste à payer (clients)</span><b><?= money0(array_sum(array_map(fn($r) => (int)$r['total'] - (int)$r['paid'], $rows))) ?></b><small><?= count($rows) ?> vente(s)</small></div>
-      <div class="kpi"><span>Factures à encaisser</span><b><?= money0(array_sum(array_map(fn($r) => (int)$r['net'] - (int)$r['paid'], $invs))) ?></b><small><?= count($invs) ?> facture(s) hors caisse</small></div>
-      <div class="kpi"><span>Chez les transporteurs</span><b><?= money0(array_sum(array_column($cod, 'cod_amount'))) ?></b><small><?= count($cod) ?> livraison(s) livrée(s) non reversée(s)</small></div>
-      <div class="kpi"><span>Plus ancienne créance</span><b><?= $rows ? (int)max(array_column($rows, 'age')) . ' j' : '—' ?></b></div>
+      <div class="kpi"><span>Clients (ventes)</span><b><?= money0($recv['clients']['t']) ?></b><small><?= count($rows) ?> vente(s) avec reste à payer, hors part chez les transporteurs</small></div>
+      <div class="kpi"><span>Chez les transporteurs</span><b><?= money0($recv['carriers']['t']) ?></b><small><?= $recv['carriers']['n'] ?> livraison(s) livrée(s) non reversée(s)</small></div>
+      <div class="kpi"><span>Factures à encaisser</span><b><?= money0($recv['invoices']['t']) ?></b><small><?= $recv['invoices']['n'] ?> facture(s) hors caisse</small></div>
+      <div class="kpi"><span>Réparations non payées</span><b><?= money0($recv['repairs']['t']) ?></b><small><?= $recv['repairs']['n'] ?> réparation(s) terminée(s)<?= $rows ? ' · plus ancienne créance client ' . (int)max(array_column($rows, 'age')) . ' j' : '' ?></small></div>
     </div>
     <section class="card flush">
       <div class="card-head"><b>Ventes avec reste à payer (facilités, acomptes)</b></div>
@@ -344,6 +347,20 @@ if ($a === 'receivables') {
         <?php if (!$cod): ?><tr><td colspan="5" class="empty-row">Rien à récupérer.</td></tr><?php endif; ?>
       </table>
     </section>
+    <?php if (can('repairs.view')): ?>
+    <section class="card flush">
+      <div class="card-head"><b>Réparations terminées non payées</b></div>
+      <table class="tbl hover">
+        <thead><tr><th>Réparation</th><th>Client</th><th>Machine</th><th class="num">Montant</th><th class="num">Payé</th><th class="num">Reste</th></tr></thead>
+        <?php foreach ($repOwed as $r): ?>
+          <tr data-href="<?= e(url('repairs', ['a' => 'edit', 'id' => $r['id']])) ?>"><td><b><?= e($r['number']) ?></b><?= $r['done_at'] ? '<br><small class="muted">réparé le ' . fdate($r['done_at']) . '</small>' : '' ?></td>
+            <td><?= e($r['client_name'] ?: '—') ?><?= $r['phone'] ? '<br><a href="tel:' . e($r['phone']) . '"><small>' . e($r['phone']) . '</small></a>' : '' ?></td><td><?= e($r['product']) ?></td>
+            <td class="num"><?= money($r['amount']) ?></td><td class="num"><?= money($r['paid']) ?></td><td class="num"><b class="warn-t"><?= money((int)$r['amount'] - (int)$r['paid']) ?></b></td></tr>
+        <?php endforeach; ?>
+        <?php if (!$repOwed): ?><tr><td colspan="6" class="empty-row">Aucune réparation à encaisser.</td></tr><?php endif; ?>
+      </table>
+    </section>
+    <?php endif; ?>
     <?php
     layout_end();
     exit;
@@ -378,7 +395,7 @@ usort($byMethod, fn($x, $y) => (int)$y['t'] <=> (int)$x['t']);
 $collected = array_sum(array_map(fn($r) => (int)$r['t'], $byMethod));
 $el = $locF ? ' AND e.location_id = ' . (int)$locF : '';
 $exp = one("SELECT COALESCE(SUM(amount),0) t, COALESCE(SUM(CASE WHEN category = 'achats' THEN amount END),0) achats FROM expenses e WHERE date BETWEEN ? AND ?$el", [$from, $to]);
-$fees = (int)val("SELECT COALESCE(SUM(fee),0) FROM shipments WHERE status <> 'annulee' AND date(created_at) BETWEEN ? AND ?" . ($locF ? ' AND location_id = ' . (int)$locF : ''), [$from, $to]);
+$fees = (int)val("SELECT COALESCE(SUM(fee + technician_fee),0) FROM shipments WHERE status <> 'annulee' AND date(created_at) BETWEEN ? AND ?" . ($locF ? ' AND location_id = ' . (int)$locF : ''), [$from, $to]);
 $byLoc = all("SELECT l.id, l.name,
     (SELECT COUNT(*) FROM sales s WHERE s.location_id = l.id AND s.status <> 'annulee' AND date(s.created_at) BETWEEN ? AND ?) n,
     (SELECT COALESCE(SUM(total),0) FROM sales s WHERE s.location_id = l.id AND s.status <> 'annulee' AND date(s.created_at) BETWEEN ? AND ?) t,
@@ -396,7 +413,7 @@ $margin = (int)round($htCosted) - (int)$lines['cost'] - (int)$invLines['cost'];
 $coverage = $htAll > 0 ? $htCosted / $htAll * 100 : 0;
 $opex = (int)$exp['t'] - (int)$exp['achats'];
 
-$actions = can('payments.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'paiements', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Paiements CSV</a>' : '';
+$actions = can('payments.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'paiements', 'from' => $from, 'to' => $to, 'loc' => $locF ?: null])) . '">' . icon('download') . 'Exporter les paiements</a>' : '';
 layout_start('Finances', 'finances', ['actions' => $actions]);
 echo $tabsHtml . $periodForm('summary');
 ?>
@@ -410,7 +427,7 @@ echo $tabsHtml . $periodForm('summary');
   <div class="grid3 kpis">
     <div class="kpi"><span>Marge brute estimée (HT)</span><b><?= money0($margin) ?></b><small>sur <?= pct($coverage) ?> du CA (produits avec prix d’achat renseigné)</small></div>
     <div class="kpi"><span>Remises accordées</span><b><?= money0($sales['disc_all']) ?></b><small>écart prix catalogue → prix vendu</small></div>
-    <div class="kpi"><span>Résultat estimé</span><b class="<?= $margin - $opex - $fees < 0 ? 'neg' : '' ?>"><?= money0($margin - $opex - $fees) ?></b><small>marge brute − dépenses (hors achats) − transport</small></div>
+    <div class="kpi"><span>Résultat estimé</span><b class="<?= $margin - $opex - $fees < 0 ? 'neg' : '' ?>"><?= money0($margin - $opex - $fees) ?></b><small>marge brute − dépenses (hors achats) − transport et techniciens</small></div>
   </div>
 <?php endif; ?>
 <div class="grid2">
@@ -426,7 +443,7 @@ echo $tabsHtml . $periodForm('summary');
         <tr><td><?= e($r['name']) ?></td><td class="num"><?= (int)$r['n'] ?><?= (int)$r['ni'] ? '<br><small class="muted">+ ' . (int)$r['ni'] . ' facture(s)</small>' : '' ?></td><td class="num"><?= money0((int)$r['t'] + (int)$r['it']) ?></td><td class="num"><?= money0((int)$r['enc'] + (int)$r['ienc']) ?></td><td class="num"><?= money0($r['dep']) ?></td></tr>
       <?php endforeach; ?>
       <?php if ($general || !empty($generalInv['n'])): ?><tr><td>Général / siège</td><td class="num"><?= !empty($generalInv['n']) ? (int)$generalInv['n'] . ' facture(s)' : '' ?></td><td class="num"><?= !empty($generalInv['t']) ? money0($generalInv['t']) : '' ?></td><td></td><td class="num"><?= $general ? money0($general) : '' ?></td></tr><?php endif; ?>
-      <tr class="strong"><td>Frais de transport (livraisons)</td><td></td><td></td><td></td><td class="num"><?= money0($fees) ?></td></tr>
+      <tr class="strong"><td>Transport et primes des techniciens (livraisons)</td><td></td><td></td><td></td><td class="num"><?= money0($fees) ?></td></tr>
     </table>
   </section>
 </div>

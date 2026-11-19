@@ -352,9 +352,40 @@ function doc_cancel(array $d, string $reason): void
     });
 }
 
+/**
+ * Une facture ne peut être supprimée que si c'est la DERNIÈRE émise de son année (son numéro est alors libéré et
+ * réutilisé : la suite des numéros reste continue), sans paiement, par la direction. Retourne la raison du refus, ou null.
+ */
+function doc_invoice_delete_block(array $d): ?string
+{
+    if ($d['type'] !== 'facture') return 'Ce document n’est pas une facture.';
+    if (!is_admin()) return 'Seule la direction peut supprimer une facture.';
+    if (!preg_match('/(\d+)\/(\d{2})$/', (string)$d['number'], $m)) return 'Numéro de facture non reconnu.';
+    $last = (int)val('SELECT value FROM counters WHERE key = ?', ['doc:facture:' . (2000 + (int)$m[2])]);
+    if ((int)$m[1] !== $last) {
+        return 'Seule la dernière facture émise (n° ' . str_pad((string)$last, 6, '0', STR_PAD_LEFT) . '/' . $m[2] . ') peut être supprimée : sinon un numéro manquerait dans la suite des factures. Annulez plutôt celle-ci.';
+    }
+    if ((int)$d['paid'] > 0 || (int)val('SELECT COUNT(*) FROM document_payments WHERE document_id = ?', [$d['id']])) {
+        return 'Supprimez d’abord les paiements enregistrés sur cette facture (bouton corbeille à côté de chaque paiement).';
+    }
+    return null;
+}
+
 function doc_delete(array $d): void
 {
-    if ($d['type'] !== 'devis') throw new RuntimeException('Une facture ne se supprime pas : annulez-la.');
+    if ($d['type'] === 'facture') {
+        if ($why = doc_invoice_delete_block($d)) throw new RuntimeException($why);
+        preg_match('/(\d+)\/(\d{2})$/', (string)$d['number'], $m);
+        tx(function () use ($d, $m) {
+            if ($d['stock_applied']) doc_stock($d, doc_items((int)$d['id']), +1);
+            if ($d['source_id']) q("UPDATE documents SET status = 'accepte', updated_at = ? WHERE id = ? AND status = 'facture'", [now(), $d['source_id']]);
+            q('DELETE FROM documents WHERE id = ?', [$d['id']]);
+            // Numéro libéré : la prochaine facture le reprend
+            q('UPDATE counters SET value = value - 1 WHERE key = ? AND value = ?', ['doc:facture:' . (2000 + (int)$m[2]), (int)$m[1]]);
+            audit('facture supprimée', 'document', $d['id'], $d['number'] . ' · ' . money($d['net']) . ' · numéro libéré');
+        });
+        return;
+    }
     if ($d['status'] === 'facture') throw new RuntimeException('Ce devis est facturé : il ne peut pas être supprimé.');
     if (!is_admin() && (int)$d['created_by'] !== (int)user()['id']) throw new RuntimeException('Seul l’auteur du devis ou la direction peut le supprimer.');
     q('DELETE FROM documents WHERE id = ?', [$d['id']]);

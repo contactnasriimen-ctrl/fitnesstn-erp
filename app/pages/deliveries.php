@@ -195,8 +195,8 @@ if ($a === 'carriers' || $a === 'carrier_edit') {
         if (!$admin) redirect(url('deliveries', ['a' => 'carriers']));
         $edit = (int)get('id') ? one('SELECT * FROM carriers WHERE id = ?', [(int)get('id')]) : ['id' => 0, 'name' => '', 'type' => 'externe', 'phone' => '', 'contact' => '', 'zones' => '', 'default_fee' => 0, 'cod' => 1, 'notes' => '', 'active' => 1];
     }
-    $actions = (can('deliveries.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'transporteurs'])) . '">' . icon('download') . 'Export CSV</a>' : '')
-        . ($admin ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'transporteurs'])) . '">' . icon('upload') . 'Import CSV</a><a class="btn sm primary" href="' . e(url('deliveries', ['a' => 'carrier_edit'])) . '">' . icon('plus') . 'Nouveau transporteur</a>' : '');
+    $actions = (can('deliveries.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'transporteurs'])) . '">' . icon('download') . 'Exporter</a>' : '')
+        . ($admin ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'transporteurs'])) . '">' . icon('upload') . 'Importer</a><a class="btn sm primary" href="' . e(url('deliveries', ['a' => 'carrier_edit'])) . '">' . icon('plus') . 'Nouveau transporteur</a>' : '');
     layout_start('Livraisons & transporteurs', 'deliveries', ['actions' => $actions]);
     echo $tabsHtml;
     if ($edit): ?>
@@ -424,8 +424,8 @@ $counts = [];
 foreach (all("SELECT status, COUNT(*) n FROM shipments $scopeWhere GROUP BY status") as $c) $counts[$c['status']] = (int)$c['n'];
 $owed = (int)val("SELECT COUNT(*) FROM shipments WHERE status = 'livree' AND cod_collected = 0 AND cod_amount > 0" . ($scope ? ' AND location_id = ' . (int)$scope : ''));
 
-$actions = (can('deliveries.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'livraisons'])) . '">' . icon('download') . 'Export CSV</a>' : '')
-    . (can('deliveries.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'livraisons'])) . '">' . icon('upload') . 'Import</a>' : '')
+$actions = (can('deliveries.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'livraisons'])) . '">' . icon('download') . 'Exporter</a>' : '')
+    . (can('deliveries.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'livraisons'])) . '">' . icon('upload') . 'Importer</a>' : '')
     . (can('deliveries.edit') ? '<a class="btn sm primary" href="' . e(url('deliveries', ['a' => 'edit'])) . '">' . icon('plus') . 'Nouvelle livraison</a>' : '');
 layout_start('Livraisons & transporteurs', 'deliveries', ['actions' => $actions]);
 echo $tabsHtml;

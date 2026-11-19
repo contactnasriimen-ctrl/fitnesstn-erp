@@ -171,8 +171,8 @@ $money = one("SELECT COALESCE(SUM(paid),0) paid, COALESCE(SUM(CASE WHEN status =
     SUM(CASE WHEN status = 'repare' AND paid < amount THEN 1 ELSE 0 END) owed_n FROM repairs $sw");
 $byTech = all("SELECT technician, COUNT(*) n, SUM(status IN ('nouveau','en_cours')) open FROM repairs " . ($sw ?: 'WHERE 1') . " AND technician <> '' GROUP BY technician ORDER BY open DESC, n DESC LIMIT 4");
 
-$actions = (can('repairs.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'reparations'])) . '">' . icon('download') . 'Export</a>' : '')
-    . (is_admin() ? '<a class="btn sm ghost" href="' . e(url('io')) . '#excel">' . icon('upload') . 'Import Excel</a>' : '')
+$actions = (can('repairs.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'reparations'])) . '">' . icon('download') . 'Exporter</a>' : '')
+    . (is_admin() ? '<a class="btn sm ghost" href="' . e(url('io')) . '#excel">' . icon('upload') . 'Importer</a>' : '')
     . ($canEdit ? '<a class="btn sm primary" href="' . e(url('repairs', ['a' => 'edit'])) . '">' . icon('plus') . 'Nouvelle réparation</a>' : '');
 layout_start('Réparations & SAV', 'repairs', ['actions' => $actions]);
 ?>

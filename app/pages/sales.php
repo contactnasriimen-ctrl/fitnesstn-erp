@@ -69,7 +69,7 @@ if ($a === 'view') {
         <dl class="kv">
           <dt>Date</dt><dd><?= fdate($s['created_at'], true) ?></dd>
           <dt>Showroom</dt><dd><?= e(location((int)$s['location_id'])['name'] ?? '') ?></dd>
-          <dt>Vendeur</dt><dd><?= e($s['seller']) ?></dd>
+          <dt>Vendeur</dt><dd><?= $s['import_ref'] ? 'Inconnu (vente importée du fichier Excel)' : e($s['seller']) ?></dd>
           <dt>Client</dt><dd><?= $s['client_id'] ? '<a href="' . e(url('clients', ['a' => 'view', 'id' => $s['client_id']])) . '">' . e($s['client_name']) . '</a> ' . e($s['client_phone']) : 'Client de passage' ?></dd>
           <dt>Origine</dt><dd><?= e(SOURCES[$s['source']] ?? '—') ?><?= $s['campaign'] ? ' · campagne « ' . e($s['campaign']) . ' »' : '' ?></dd>
           <?php if ($s['status'] === 'annulee'): ?>
@@ -176,7 +176,7 @@ $rows = all("SELECT s.*, c.name AS client_name, c.phone AS client_phone, u.name 
     LEFT JOIN clients c ON c.id = s.client_id LEFT JOIN users u ON u.id = s.user_id WHERE $w ORDER BY s.id DESC LIMIT $per OFFSET " . (($page - 1) * $per), $p);
 
 $exportParams = array_filter(['ds' => 'ventes', 'from' => $f['from'], 'to' => $f['to'], 'loc' => $f['loc'] ?: null]);
-$actions = can('sales.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Export CSV</a>' : '';
+$actions = can('sales.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Exporter</a>' : '';
 $actions .= can('pos') ? '<a class="btn sm primary" href="' . e(url('pos')) . '">' . icon('pos') . 'Caisse</a>' : '';
 layout_start('Ventes', 'sales', ['actions' => $actions]);
 ?>
@@ -205,7 +205,7 @@ layout_start('Ventes', 'sales', ['actions' => $actions]);
         <td><?= fdate($r['created_at'], true) ?></td>
         <?php if (!$scope): ?><td><?= e(location((int)$r['location_id'])['name'] ?? '') ?></td><?php endif; ?>
         <td><?= e($r['client_name'] ?: '—') ?><?= $r['client_phone'] ? '<br><small class="muted">' . e($r['client_phone']) . '</small>' : '' ?></td>
-        <td><?= e($r['seller']) ?></td>
+        <td><?= $r['import_ref'] ? '<span class="muted">Import Excel</span>' : e($r['seller']) ?></td>
         <td class="num"><?= money($r['total']) ?></td>
         <td class="num"><?= $rest > 0 ? money($rest) : '' ?></td>
         <td><?= badge(['payee' => 'Payée', 'partielle' => 'Reste à payer', 'annulee' => 'Annulée'][$r['status']] ?? $r['status'], ['payee' => 'ok', 'partielle' => 'warn', 'annulee' => 'err'][$r['status']] ?? '') ?></td>

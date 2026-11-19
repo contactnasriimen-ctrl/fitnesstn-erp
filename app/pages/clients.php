@@ -138,8 +138,8 @@ $rows = all("SELECT c.*, (SELECT COUNT(*) FROM sales s WHERE s.client_id = c.id 
     (SELECT COALESCE(SUM(total),0) FROM sales s WHERE s.client_id = c.id AND s.status <> 'annulee') t,
     (SELECT MAX(created_at) FROM sales s WHERE s.client_id = c.id) last
     FROM clients c WHERE $w ORDER BY COALESCE(last, c.created_at) DESC LIMIT 50 OFFSET " . (($page - 1) * 50), $p);
-$actions = (can('clients.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'clients'])) . '">' . icon('download') . 'Export CSV</a>' : '')
-    . (can('clients.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'clients'])) . '">' . icon('upload') . 'Import CSV</a>' : '')
+$actions = (can('clients.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'clients'])) . '">' . icon('download') . 'Exporter</a>' : '')
+    . (can('clients.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'clients'])) . '">' . icon('upload') . 'Importer</a>' : '')
     . (can('clients.edit') ? '<a class="btn sm primary" href="' . e(url('clients', ['a' => 'edit'])) . '">' . icon('plus') . 'Nouveau client</a>' : '');
 layout_start('Clients', 'clients', ['actions' => $actions]);
 ?>

@@ -527,6 +527,11 @@ function xl_import_paiements(array $sheets, array &$rep): void
                     $paid = (int)val('SELECT COALESCE(SUM(amount),0) FROM payments WHERE sale_id = ?', [$sale['id']]);
                     update('sales', ['paid' => $paid, 'status' => $paid >= (int)$sale['total'] ? 'payee' : 'partielle'], 'id = ?', [$sale['id']]);
                 }
+                // Retour : la marchandise est revenue, le client ne doit rien -> vente annulée (comme dans le fichier des ventes)
+                if ($status === 'retour' && (int)val('SELECT COALESCE(SUM(amount),0) FROM payments WHERE sale_id = ?', [$sale['id']]) === 0) {
+                    update('sales', ['status' => 'annulee', 'paid' => 0, 'cancelled_at' => $date . ' 18:00:00', 'cancelled_by' => user()['id'] ?? null,
+                        'cancel_reason' => 'Retour transporteur (fichier PAIEMENT)'], 'id = ?', [$sale['id']]);
+                }
             }
             if ($amount > 0) $rep['amount'] += $amount;
             } catch (Throwable $e) {

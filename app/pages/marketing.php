@@ -114,7 +114,7 @@ if ($a === 'stats') {
         WHERE (c.start_date IS NULL OR c.start_date <= ?) AND (c.end_date IS NULL OR c.end_date >= ?)
         GROUP BY c.id ORDER BY ca DESC", [$from, $to, $to, $from]);
     $known = array_sum(array_map(fn($r) => $r['src'] !== '—' ? (int)$r['n'] : 0, $bySource));
-    layout_start('Marketing', 'marketing', ['actions' => can('campaigns.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'ventes', 'from' => $from, 'to' => $to])) . '">' . icon('download') . 'Ventes CSV</a>' : '']);
+    layout_start('Marketing', 'marketing', ['actions' => can('campaigns.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'ventes', 'from' => $from, 'to' => $to])) . '">' . icon('download') . 'Exporter les ventes</a>' : '']);
     echo $tabsHtml;
     ?>
     <form class="filters" method="get">
@@ -166,8 +166,8 @@ $rows = all("SELECT c.*, p.name product, l.name loc, (SELECT COUNT(*) FROM sales
     (SELECT COALESCE(SUM(total),0) FROM sales s WHERE s.campaign_id = c.id AND s.status <> 'annulee') ca
     FROM campaigns c LEFT JOIN products p ON p.id = c.product_id LEFT JOIN locations l ON l.id = c.location_id $where
     ORDER BY CASE c.status WHEN 'active' THEN 0 WHEN 'planifiee' THEN 1 WHEN 'pause' THEN 2 ELSE 3 END, c.start_date DESC", $status !== '' ? [$status] : []);
-$actions = (can('campaigns.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'campagnes'])) . '">' . icon('download') . 'Export CSV</a>' : '')
-    . (can('campaigns.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'campagnes'])) . '">' . icon('upload') . 'Import CSV</a>' : '')
+$actions = (can('campaigns.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export', 'ds' => 'campagnes'])) . '">' . icon('download') . 'Exporter</a>' : '')
+    . (can('campaigns.import') ? '<a class="btn sm ghost" href="' . e(url('io', ['ds' => 'campagnes'])) . '">' . icon('upload') . 'Importer</a>' : '')
     . ($canEdit ? '<a class="btn sm primary" href="' . e(url('marketing', ['a' => 'edit'])) . '">' . icon('plus') . 'Nouvelle campagne</a>' : '');
 layout_start('Marketing', 'marketing', ['actions' => $actions]);
 echo $tabsHtml;
