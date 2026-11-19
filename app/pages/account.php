@@ -44,6 +44,11 @@ layout_start('Mon compte', 'account');
     <p class="hint">8 caractères minimum, avec des lettres et des chiffres.</p>
     <button class="btn primary"><?= icon('check') ?>Enregistrer</button>
   </form>
+  <section class="card">
+    <h2>Petit sportif</h2>
+    <p class="muted">Le petit personnage qui court en bas de l’écran. Cliquez dessus pour un encouragement !</p>
+    <label class="check"><input type="checkbox" data-mascot-toggle checked> Afficher le petit sportif sur cet appareil</label>
+  </section>
 </div>
 <?php
 layout_end();
