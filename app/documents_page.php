@@ -277,7 +277,16 @@ if ($a === 'view') {
             . ' d’un montant de ' . money($d['net']) . ($isQuote && $d['due_date'] ? ', valable jusqu’au ' . fdate($d['due_date']) : '') . ".\nMerci pour votre confiance !";
         $wa = 'https://wa.me/216' . $d['client_phone'] . '?text=' . rawurlencode($msg);
     }
-    $actions = '<a class="btn sm" target="_blank" href="' . e(url('doc', ['id' => $d['id'], 'print' => 1])) . '">' . icon('print') . 'Imprimer / PDF</a>'
+    // Bouton « Supprimer » visible en haut : direct si c'est possible, sinon il ouvre l'explication en bas de page
+    $canDelete = $isQuote ? ($canEdit && $d['status'] !== 'facture' && (is_admin() || (int)$d['created_by'] === (int)user()['id'])) : (is_admin() && doc_invoice_delete_block($d) === null);
+    $delBtn = '';
+    if ($canDelete) {
+        $delBtn = '<form method="post" action="' . e(url($route, ['a' => 'delete'])) . '" class="inline-del" onsubmit="return confirm(' . e(json_encode('Supprimer définitivement ' . ($isQuote ? 'le devis ' : 'la facture ') . $d['number'] . ' ?' . ($isQuote ? '' : ' Son numéro sera repris par la prochaine facture.'))) . ')">'
+            . csrf_field() . '<input type="hidden" name="id" value="' . (int)$d['id'] . '"><button class="btn sm ghost danger">' . icon('trash') . 'Supprimer</button></form>';
+    } elseif (!$isQuote && is_admin()) {
+        $delBtn = '<a class="btn sm ghost danger" href="#supprimer" onclick="var z=document.getElementById(\'supprimer\');if(z){z.open=true;}">' . icon('trash') . 'Supprimer…</a>';
+    }
+    $actions = $delBtn . '<a class="btn sm" target="_blank" href="' . e(url('doc', ['id' => $d['id'], 'print' => 1])) . '">' . icon('print') . 'Imprimer / PDF</a>'
         . ($editable ? '<a class="btn sm primary" href="' . e(url($route, ['a' => 'edit', 'id' => $d['id']])) . '">' . icon('edit') . 'Modifier</a>' : '');
     layout_start($label . ' ' . $d['number'], $route, ['actions' => $actions, 'wide' => true]);
     ?>
@@ -383,7 +392,7 @@ if ($a === 'view') {
         </section>
 
         <?php if (!$isQuote && is_admin()): $delBlock = doc_invoice_delete_block($d); ?>
-          <details class="card danger-zone">
+          <details class="card danger-zone" id="supprimer">
             <summary>Supprimer cette facture</summary>
             <?php if ($delBlock === null): ?>
               <form method="post" action="<?= e(url($route, ['a' => 'delete'])) ?>" onsubmit="return confirm('Supprimer définitivement la facture <?= e($d['number']) ?> ? Son numéro sera repris par la prochaine facture.')">
@@ -505,7 +514,8 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
 
 <div class="card flush">
   <table class="tbl hover">
-    <thead><tr><th>N°</th><th>Date</th><th>Client</th><?php if (!$scope): ?><th>Showroom</th><?php endif; ?><th><?= $isQuote ? 'Validité' : 'Échéance' ?></th><th class="num">Net à payer</th><?php if (!$isQuote): ?><th class="num">Reste</th><?php endif; ?><th>Statut</th></tr></thead>
+    <?php $listDelete = is_admin(); ?>
+    <thead><tr><th>N°</th><th>Date</th><th>Client</th><?php if (!$scope): ?><th>Showroom</th><?php endif; ?><th><?= $isQuote ? 'Validité' : 'Échéance' ?></th><th class="num">Net à payer</th><?php if (!$isQuote): ?><th class="num">Reste</th><?php endif; ?><th>Statut</th><?php if ($listDelete): ?><th class="num" title="Seule la dernière facture émise peut être supprimée"></th><?php endif; ?></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): $rr = (int)$r['net'] - (int)$r['paid']; ?>
       <tr data-href="<?= e(url($route, ['a' => 'view', 'id' => $r['id']])) ?>">
@@ -517,6 +527,9 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
         <td class="num"><b><?= money($r['net']) ?></b></td>
         <?php if (!$isQuote): ?><td class="num"><?= $r['status'] !== 'annulee' && $rr > 0 ? money($rr) : '' ?></td><?php endif; ?>
         <td><?= doc_badge($r) ?></td>
+        <?php if ($listDelete): ?><td class="num"><?php if (!$isQuote ? doc_invoice_delete_block($r) === null : ($r['status'] !== 'facture')): ?>
+          <form method="post" action="<?= e(url($route, ['a' => 'delete'])) ?>" onsubmit="return confirm(<?= e(json_encode('Supprimer définitivement ' . ($isQuote ? 'le devis ' : 'la facture ') . $r['number'] . ' ?')) ?>)"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><button class="icon-btn xs" title="Supprimer <?= e($r['number']) ?>" aria-label="Supprimer <?= e($r['number']) ?>"><?= icon('trash') ?></button></form>
+        <?php endif; ?></td><?php endif; ?>
       </tr>
     <?php endforeach; ?>
     <?php if (!$rows): ?>

@@ -1,0 +1,45 @@
+ERP FitnessTN sur votre hébergement OVH
+=======================================
+
+Pourquoi ?
+----------
+La version GitHub garde les données dans le navigateur de chaque appareil : chaque personne
+voit ses propres factures. Sur l'hébergement OVH, il n'y a qu'UNE base de données pour tout
+le monde : Tunis, Nabeul, le livreur et la direction voient les mêmes factures, ventes,
+livraisons et réparations, en temps réel.
+
+
+1. PREMIÈRE INSTALLATION (une seule fois)
+-----------------------------------------
+Dossier à envoyer : installation\erp\   (ou le fichier fitnesstn-erp-installation.zip)
+Il contient le programme ET votre base actuelle (614 ventes, livraisons, réparations, clients…).
+
+ a) Ouvrez FileZilla et connectez-vous à votre hébergement OVH (comme pour vos autres sites).
+ b) À droite, ouvrez le dossier www/ du site choisi.
+    Exemple : www/erp/  -> l'ERP sera à l'adresse https://www.votre-site.com/erp/
+    (ou un sous-domaine, par exemple https://erp.fitness-tn.com, créé dans l'espace client OVH
+    › Multisite, qui pointe vers un dossier www/erp/).
+ c) À gauche, ouvrez installation\erp\ et envoyez TOUT son contenu dans ce dossier
+    (y compris les fichiers qui commencent par un point : .htaccess).
+ d) Dans FileZilla, clic droit sur le dossier data/ › Droits d'accès › 755 (cocher « récursif »).
+ e) Ouvrez https://…/erp/check.php : tout doit être vert.
+ f) Ouvrez https://…/erp/ et connectez-vous avec vos identifiants habituels du PC
+    (voir le PDF des mots de passe). Changez ensuite chaque mot de passe dans « Mon compte ».
+
+IMPORTANT : à partir de ce moment, travaillez UNIQUEMENT sur la version en ligne OVH.
+L'ERP du PC (start.bat) devient une ancienne copie : ce que vous y saisiriez n'apparaîtrait pas en ligne.
+Activez le HTTPS (certificat SSL gratuit) dans l'espace client OVH si ce n'est pas déjà fait.
+
+
+2. MISES À JOUR SUIVANTES (nouvelles fonctions)
+-----------------------------------------------
+Dossier à envoyer : mise-a-jour\erp\   (ou fitnesstn-erp-mise-a-jour.zip)
+Il ne contient PAS de base de données : vos données en ligne ne sont jamais écrasées.
+Envoyez-le dans le même dossier en choisissant « Écraser » quand FileZilla le demande.
+
+
+3. SAUVEGARDES
+--------------
+L'ERP fait une copie de la base chaque jour (Paramètres › Sauvegardes, 14 jours gardés).
+Téléchargez une sauvegarde chaque semaine (bouton « Télécharger une sauvegarde ») et gardez-la
+hors du serveur (clé USB, Google Drive…).

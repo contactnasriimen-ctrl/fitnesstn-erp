@@ -109,6 +109,7 @@ html.nav-busy::before { content: ""; position: fixed; top: 0; left: 0; right: 0;
 .tbl tbody tr { transition: background .12s; }
 .tbl tbody tr:hover > td { background: #f7faff; }
 .chip { transition: background .15s, border-color .15s, color .15s; }
+.inline-del { display: inline-flex; margin: 0; }
 a.kpi-link { display: block; color: inherit; text-decoration: none; }
 a.kpi-link:hover { border-color: #b9c4d6; }
 a.kpi-link:hover > b { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
