@@ -144,3 +144,61 @@ a.kpi-link:hover > b { text-decoration: underline; text-decoration-thickness: 2p
   .x-form .btn span { display: none; }
   .goods-row { grid-template-columns: minmax(0, 1fr) 64px 30px; }
 }
+
+/* ---------- Petit sportif animé (bas de l'écran) ---------- */
+.mascot { position: fixed; right: 14px; bottom: 8px; z-index: 30; width: 96px; height: 96px; pointer-events: none; }
+html.mascot-off .mascot { display: none; }
+.content { padding-bottom: 112px; }
+.mascot svg { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; cursor: pointer; filter: drop-shadow(0 6px 8px rgba(10, 31, 77, .14)); }
+.mascot svg * { pointer-events: visiblePainted; transform-box: view-box; }
+.mascot svg:focus { outline: none; }
+.mascot svg:focus-visible { outline: 3px solid rgba(31, 123, 255, .35); outline-offset: 2px; border-radius: 14px; }
+.m-runner { transform-origin: 50px 92px; animation: m-bob .25s ease-in-out infinite alternate; }
+.m-leg-a, .m-leg-b { transform-origin: 50px 72px; animation: m-swing .5s ease-in-out infinite alternate; }
+.m-arm-a, .m-arm-b { transform-origin: 50px 54px; animation: m-swing .5s ease-in-out infinite alternate; }
+.m-arm-a { animation-name: m-swing-arm; }
+/* Jambe arrière et bras avant en opposition (après les raccourcis « animation ») */
+.m-leg-b, .m-arm-a { animation-delay: -.5s; }
+.m-belt { animation: m-belt .5s linear infinite; }
+.m-eyes { transform-origin: 51px 37.5px; animation: m-blink 4.2s infinite; }
+.m-band { transform-origin: 37px 30.6px; animation: m-flap .25s ease-in-out infinite alternate; }
+.m-sweat { opacity: 0; animation: m-sweat 2.8s ease-in infinite; }
+.m-heart { transform-origin: 103px 52.5px; animation: m-heart .9s ease-in-out infinite; }
+@keyframes m-bob { to { transform: translateY(-2.5px); } }
+@keyframes m-swing { from { transform: rotate(30deg); } to { transform: rotate(-30deg); } }
+@keyframes m-swing-arm { from { transform: rotate(38deg); } to { transform: rotate(-24deg); } }
+@keyframes m-belt { to { stroke-dashoffset: 12; } }
+@keyframes m-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes m-flap { from { transform: rotate(-10deg); } to { transform: rotate(12deg); } }
+@keyframes m-sweat { 0%, 55% { opacity: 0; transform: translate(0, 0); } 65% { opacity: 1; } 100% { opacity: 0; transform: translate(6px, 13px); } }
+@keyframes m-heart { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.28); } 28% { transform: scale(1); } 42% { transform: scale(1.18); } }
+/* Clic : petit saut de joie */
+.mascot svg.jump .m-runner { animation: m-jump .65s cubic-bezier(.3, .7, .4, 1), m-bob .25s ease-in-out .65s infinite alternate; }
+@keyframes m-jump { 0%, 100% { transform: translateY(0) rotate(0); } 40% { transform: translateY(-17px) rotate(-7deg); } 75% { transform: translateY(0) rotate(2deg); } }
+.mascot-bubble { position: absolute; right: 58px; bottom: 84px; padding: 7px 12px; border-radius: 14px 14px 4px 14px; background: #fff; color: var(--text);
+  border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(15, 23, 42, .16); font: 600 12.5px/1.3 var(--font); white-space: nowrap;
+  opacity: 0; transform: translateY(6px) scale(.9); transform-origin: 100% 100%; transition: opacity .18s ease, transform .18s ease; pointer-events: none; }
+.mascot-bubble.on { opacity: 1; transform: none; }
+.mascot-x { position: absolute; top: 0; right: 0; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line);
+  background: #fff; color: var(--muted); font: 700 14px/1 var(--font); cursor: pointer; pointer-events: auto; opacity: 0; transition: opacity .15s; box-shadow: var(--shadow); }
+.mascot:hover .mascot-x, .mascot-x:focus-visible { opacity: 1; }
+@media (max-width: 900px) {
+  /* Barre du haut sur téléphone : boutons secondaires en icône seule (le texte reste lu par les lecteurs d'écran) */
+  .top-actions { min-width: 0; gap: 6px; }
+  .top-actions .btn.ghost, .top-actions .btn:not(.primary) { font-size: 0; gap: 0; padding: 0 9px; }
+  .top-actions .btn .ic { width: 17px; height: 17px; }
+  .top-actions .btn.primary { padding: 0 10px; }
+}
+@media (max-width: 480px) {
+  .top-actions .btn.primary { font-size: 0; gap: 0; padding: 0 10px; }
+}
+@media (max-width: 900px) {
+  .mascot { width: 68px; height: 68px; right: 6px; bottom: calc(62px + env(safe-area-inset-bottom)); }
+  .mascot-x { opacity: .9; width: 20px; height: 20px; font-size: 13px; }
+  .mascot-bubble { right: 42px; bottom: 60px; }
+  .content { padding-bottom: 150px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot svg * { animation: none !important; }
+  .mascot-bubble { transition: none; }
+}

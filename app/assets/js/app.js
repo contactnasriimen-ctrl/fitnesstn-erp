@@ -272,4 +272,48 @@
     b.title = show ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
     input.focus();
   });
+
+  // Petit sportif : clic = saut + encouragement ; × = le masquer (réaffichable dans Mon compte)
+  const mascot = document.querySelector('[data-mascot]');
+  const setMascot = (on) => {
+    root.classList.toggle('mascot-off', !on);
+    try { if (on) localStorage.removeItem('ftn-mascot'); else localStorage.setItem('ftn-mascot', 'off'); } catch (e) { /* stockage bloqué */ }
+  };
+  if (mascot) {
+    const svg = mascot.querySelector('[data-mascot-svg]');
+    const bubble = mascot.querySelector('[data-mascot-bubble]');
+    const phrases = ['Yalla ! 💪', 'Encore une vente !', 'Sa7a !', 'On lâche rien !', 'Bravo l’équipe ! 👏', 'Encore 5 km !', 'Respire… et souris 😄', 'Allez, on y va !', 'Champion·ne !'];
+    let last = -1;
+    let hideTimer = 0;
+    const say = (text) => {
+      bubble.textContent = text;
+      bubble.classList.add('on');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => bubble.classList.remove('on'), 2600);
+    };
+    const cheer = () => {
+      svg.classList.remove('jump');
+      void svg.getBoundingClientRect(); // relance l'animation du saut
+      svg.classList.add('jump');
+      let i;
+      do { i = Math.floor(Math.random() * phrases.length); } while (i === last && phrases.length > 1);
+      last = i;
+      say(phrases[i]);
+    };
+    svg.addEventListener('click', cheer);
+    svg.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cheer(); } });
+    svg.addEventListener('animationend', (e) => { if (e.animationName === 'm-jump') svg.classList.remove('jump'); });
+    mascot.querySelector('[data-mascot-hide]').addEventListener('click', () => setMascot(false));
+    try {
+      if (!root.classList.contains('mascot-off') && !sessionStorage.getItem('ftn-mascot-hi')) {
+        sessionStorage.setItem('ftn-mascot-hi', '1');
+        setTimeout(() => say('Yalla, au travail ! 💪'), 900);
+      }
+    } catch (e) { /* stockage bloqué */ }
+  }
+  const mascotToggle = document.querySelector('[data-mascot-toggle]');
+  if (mascotToggle) {
+    mascotToggle.checked = !root.classList.contains('mascot-off');
+    mascotToggle.addEventListener('change', () => setMascot(mascotToggle.checked));
+  }
 })();
