@@ -202,3 +202,31 @@ html.mascot-off .mascot { display: none; }
   .mascot svg * { animation: none !important; }
   .mascot-bubble { transition: none; }
 }
+
+/* ---------- Menu du compte (haut à droite) ---------- */
+.user-menu { flex: none; margin-left: 2px; }
+.user-btn { display: grid; place-items: center; cursor: pointer; border-radius: 50%; padding: 2px; border: 2px solid transparent; transition: border-color .15s, box-shadow .15s; }
+.user-btn:hover, .user-menu[open] .user-btn { border-color: #cfe0ff; box-shadow: 0 0 0 3px rgba(47, 139, 255, .12); }
+.user-btn:focus { outline: none; }
+.user-btn:focus-visible { border-color: var(--brand); }
+.user-btn .avatar { width: 32px; height: 32px; font-size: 12px; }
+.user-menu .menu-pop { min-width: 230px; }
+.um-head { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.um-head b { display: block; font-size: 13.5px; color: var(--text); }
+.um-head small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.user-menu form { margin: 0; }
+.um-out { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: #c0262d; font: 600 14px var(--font); cursor: pointer; text-align: left; }
+.um-out .ic { color: #c0262d; }
+.um-out:hover { background: #fdecec; }
+@media print { .user-menu { display: none !important; } }
+
+/* ---------- Sélection multiple (factures, devis) ---------- */
+.tbl th.sel, .tbl td.sel { width: 36px; padding-right: 0; text-align: center; cursor: default; }
+.tbl td.sel input, .tbl th.sel input { width: 17px; height: 17px; accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
+.tbl tr.picked td { background: #eef5ff; }
+.bulk-bar { position: sticky; top: 64px; z-index: 20; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px;
+  background: #fff; border: 1px solid #f3c7c9; border-radius: 12px; box-shadow: var(--shadow-lg); animation: pop .14s ease-out; }
+.bulk-bar[hidden] { display: none; }
+.bulk-bar > span { flex: 1; color: var(--text-2); }
+@media (max-width: 600px) { .bulk-bar { top: 58px; } .bulk-bar > span { flex-basis: 100%; } }
+@media print { .bulk-bar, .tbl .sel { display: none !important; } }
