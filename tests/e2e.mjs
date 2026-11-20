@@ -314,6 +314,25 @@ async function main() {
   r = await admin.form('index.php?r=settings&a=billing', billing);
   r = await mk.follow('index.php?r=invoices');
   ok(r.status === 200, 'partage réactivé : marketing voit de nouveau les factures');
+  // CRUD complet : un showroom supprime une facture du milieu (avec paiement), puis la dernière en lot
+  const quick = (name) => ({ 'client[name]': name, 'client[phone]': '22 333 444', date: '2026-10-21', location_id: '1', timbre: '1',
+    'items[0][label]': 'Accessoire', 'items[0][qty]': '1', 'items[0][unit_price]': '30', 'items[0][vat_rate]': '19' });
+  r = await tunis.form('index.php?r=invoices&a=save', quick('Client suppr A'));
+  const delA = docId(r.text);
+  ok(/Facture 000019\//.test(r.text), 'showroom : facture 000019 créée');
+  r = await tunis.form('index.php?r=invoices&a=save', quick('Client suppr B'));
+  const delB = docId(r.text);
+  r = await tunis.form('index.php?r=invoices&a=pay', { id: String(delA), amount: '10', method: 'virement', reference: 'T' });
+  r = await tunis.follow('index.php?r=invoices&a=view&id=' + delA);
+  ok(r.text.includes('Modifier') && r.text.includes('ne sera pas réutilisé'), 'facture encaissée : modifiable et supprimable par le showroom');
+  r = await tunis.form('index.php?r=invoices&a=delete', { id: String(delA) });
+  ok(r.text.includes('Facture 000019/') && r.text.includes('supprimée') && !r.text.includes('Client suppr A'), 'showroom : facture du milieu supprimée avec son paiement');
+  r = await mk.form('index.php?r=invoices&a=bulk_delete', { 'ids[]': String(delB) });
+  ok(r.status === 403, 'marketing (lecture seule) : suppression refusée');
+  r = await tunis.form('index.php?r=invoices&a=bulk_delete', { 'ids[]': String(delB) });
+  ok(r.text.includes('1 facture(s) supprimée(s)') && !r.text.includes('Client suppr B'), 'suppression en lot');
+  r = await admin.follow('index.php?r=settings');
+  ok(r.text.includes('name="next_invoice" type="number" min="1" value="19"'), 'numéros libérés : la prochaine facture reprend le n° 19');
 
   console.log('Factures, caisse & finances');
   await admin.form('index.php?r=pos&a=open&loc=1', { float: '100' });

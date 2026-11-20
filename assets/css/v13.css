@@ -219,3 +219,14 @@ html.mascot-off .mascot { display: none; }
 .um-out .ic { color: #c0262d; }
 .um-out:hover { background: #fdecec; }
 @media print { .user-menu { display: none !important; } }
+
+/* ---------- Sélection multiple (factures, devis) ---------- */
+.tbl th.sel, .tbl td.sel { width: 36px; padding-right: 0; text-align: center; cursor: default; }
+.tbl td.sel input, .tbl th.sel input { width: 17px; height: 17px; accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
+.tbl tr.picked td { background: #eef5ff; }
+.bulk-bar { position: sticky; top: 64px; z-index: 20; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px;
+  background: #fff; border: 1px solid #f3c7c9; border-radius: 12px; box-shadow: var(--shadow-lg); animation: pop .14s ease-out; }
+.bulk-bar[hidden] { display: none; }
+.bulk-bar > span { flex: 1; color: var(--text-2); }
+@media (max-width: 600px) { .bulk-bar { top: 58px; } .bulk-bar > span { flex-basis: 100%; } }
+@media print { .bulk-bar, .tbl .sel { display: none !important; } }

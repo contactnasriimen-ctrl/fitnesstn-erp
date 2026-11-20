@@ -115,9 +115,29 @@
   // Lignes de tableau cliquables
   document.addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-href]');
-    if (!tr || e.target.closest('a, button, input, select, textarea, label, form')) return;
+    if (!tr || e.target.closest('a, button, input, select, textarea, label, form, td.sel')) return;
     if (e.ctrlKey || e.metaKey) window.open(tr.dataset.href, '_blank'); else location.href = tr.dataset.href;
   });
+
+  // Sélection multiple dans une liste (cases à cocher reliées au formulaire [data-bulk])
+  const bulk = document.querySelector('form[data-bulk]');
+  if (bulk) {
+    const items = () => Array.from(document.querySelectorAll('[data-bulk-item]'));
+    const all = document.querySelector('[data-bulk-all]');
+    const sync = () => {
+      const n = items().filter((c) => c.checked).length;
+      bulk.hidden = n === 0;
+      bulk.querySelector('[data-bulk-count]').textContent = n;
+      items().forEach((c) => c.closest('tr')?.classList.toggle('picked', c.checked));
+      if (all) { all.checked = n > 0 && n === items().length; all.indeterminate = n > 0 && n < items().length; }
+    };
+    document.addEventListener('change', (e) => {
+      if (e.target === all) items().forEach((c) => { c.checked = all.checked; });
+      if (e.target === all || e.target.matches('[data-bulk-item]')) sync();
+    });
+    bulk.querySelector('[data-bulk-clear]').addEventListener('click', () => { items().forEach((c) => { c.checked = false; }); sync(); });
+    sync();
+  }
 
   // Fenêtres modales
   document.addEventListener('click', (e) => {
