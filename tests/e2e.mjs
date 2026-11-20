@@ -300,14 +300,20 @@ async function main() {
   r = await tunis.follow('index.php?r=invoices');
   ok(r.status === 200 && r.text.includes('000002/'), 'showroom Tunis : factures de son showroom visibles');
   r = await mk.follow('index.php?r=invoices');
-  ok(r.status === 403, 'marketing : pas d’accès aux factures');
+  ok(r.status === 200 && r.text.includes('000002/'), 'marketing : factures de toute l’équipe visibles (partage activé)');
   const billing = { company_legal_name: 'STE TEST', company_address: 'Ariana', company_mf: '1111111/A/M/000', next_invoice: '19', next_quote: '2', quote_prefix: 'DV-', invoice_prefix: '',
     quote_validity_days: '15', invoice_due_days: '0', doc_color: '#145c54', invoice_terms: 'x', invoice_transport: 'y', invoice_warranty: 'z', warranty_notice: 'n',
-    bank_name: 'UBCI', bank_rib: '1', bank_iban: '2', bank_bic: '3' };
+    bank_name: 'UBCI', bank_rib: '1', bank_iban: '2', bank_bic: '3', docs_shared: '1' };
   r = await admin.form('index.php?r=settings&a=billing', billing);
   ok(r.text.includes('Paramètres de facturation enregistrés') && r.text.includes('name="next_invoice" type="number" min="1" value="19"'), 'numérotation : prochaine facture n° 19');
   r = await admin.form('index.php?r=settings&a=billing', { ...billing, next_invoice: '2' });
   ok(r.text.includes('déjà utilisé'), 'numéro de facture déjà utilisé refusé');
+  r = await admin.form('index.php?r=settings&a=billing', { ...billing, docs_shared: '' });
+  r = await mk.follow('index.php?r=invoices');
+  ok(r.status === 403, 'partage décoché : marketing sans accès aux factures');
+  r = await admin.form('index.php?r=settings&a=billing', billing);
+  r = await mk.follow('index.php?r=invoices');
+  ok(r.status === 200, 'partage réactivé : marketing voit de nouveau les factures');
 
   console.log('Factures, caisse & finances');
   await admin.form('index.php?r=pos&a=open&loc=1', { float: '100' });

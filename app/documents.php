@@ -71,10 +71,30 @@ function doc_items(int $docId): array
         WHERE di.document_id = ? ORDER BY di.position, di.id', [$docId]);
 }
 
+/**
+ * Factures et devis partagés par toute l'équipe (Paramètres › Devis & factures, activé par défaut) :
+ * chacun voit ceux de tous les showrooms. Désactivé : un responsable ne voit que ceux de son showroom.
+ */
+function docs_shared(): bool
+{
+    return setting('docs_shared', '1') === '1';
+}
+
+/** Showroom imposé pour lister les factures et devis (null = tous). */
+function doc_scope(): ?int
+{
+    return docs_shared() ? null : scope_loc();
+}
+
+function doc_can_loc(?int $locId): bool
+{
+    return docs_shared() || can_loc($locId);
+}
+
 function doc_get(int $id, ?string $type = null): ?array
 {
     $d = one('SELECT d.*, u.name AS author FROM documents d LEFT JOIN users u ON u.id = d.created_by WHERE d.id = ?', [$id]);
-    if (!$d || ($type && $d['type'] !== $type) || !can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) return null;
+    if (!$d || ($type && $d['type'] !== $type) || !doc_can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) return null;
     return $d;
 }
 
@@ -154,7 +174,9 @@ function doc_save(array $in): int
     if (!isset(DOC_TYPES[$type])) throw new RuntimeException('Type de document inconnu.');
     if ($old && !doc_editable($old)) throw new RuntimeException('Ce document ne peut plus être modifié.');
 
-    $locId = scope_loc() ?? ((int)($in['location_id'] ?? 0) ?: null);
+    // Un responsable crée au nom de son showroom ; s'il modifie le document d'un autre showroom, celui-ci ne change pas.
+    if ($old && scope_loc()) $locId = $old['location_id'] !== null ? (int)$old['location_id'] : null;
+    else $locId = scope_loc() ?? ((int)($in['location_id'] ?? 0) ?: null);
     if ($locId && !location($locId)) throw new RuntimeException('Showroom inconnu.');
     $date = parse_date($in['date'] ?? null) ?? today();
     $due = parse_date($in['due_date'] ?? null);
@@ -224,7 +246,7 @@ function doc_save(array $in): int
 /** Un devis reste modifiable tant qu'il n'est pas facturé ; une facture tant qu'elle n'est pas annulée (et sans paiement, sauf direction). */
 function doc_editable(array $d): bool
 {
-    if (!can('invoices.edit') || !can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) return false;
+    if (!can('invoices.edit') || !doc_can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) return false;
     if ($d['type'] === 'devis') return $d['status'] !== 'facture';
     if ($d['status'] === 'annulee') return false;
     return is_admin() || (int)$d['paid'] === 0;

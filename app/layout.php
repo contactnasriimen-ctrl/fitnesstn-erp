@@ -163,7 +163,13 @@ function layout_start(string $title, string $active, array $opts = []): void
         foreach ($quick as [$label, $href, $ic]) echo '<a href="' . e($href) . '">' . icon($ic) . e($label) . '</a>';
         echo '</div></details>';
     }
-    echo '<div class="top-actions">' . ($opts['actions'] ?? '') . '</div></header>';
+    echo '<div class="top-actions">' . ($opts['actions'] ?? '') . '</div>';
+    // Menu du compte toujours visible en haut à droite (ordinateur et téléphone) : compte + déconnexion
+    echo '<details class="menu user-menu"><summary class="user-btn" title="Mon compte et déconnexion" aria-label="Mon compte et déconnexion"><span class="avatar">' . e(initials($u['name'])) . '</span></summary>'
+        . '<div class="menu-pop"><div class="um-head"><b>' . e($u['name']) . '</b><small>' . e(ROLES[$u['role']] ?? $u['role']) . ($loc ? ' · ' . e($loc['name']) : '') . '</small></div>'
+        . '<a href="' . e(url('account')) . '">' . icon('user') . 'Mon compte</a>'
+        . '<form method="post" action="' . e(url('logout')) . '">' . csrf_field() . '<button type="submit" class="um-out">' . icon('logout') . 'Se déconnecter</button></form></div></details>';
+    echo '</header>';
     echo '<dialog class="palette" id="palette" aria-label="Recherche"><div class="pal-box"><div class="pal-in">' . icon('search') . '<input type="search" placeholder="Rechercher un client, un produit, un devis, une facture, une page…" autocomplete="off" data-palette-q><kbd>Échap</kbd></div>'
         . '<div class="pal-list" data-palette-list role="listbox"></div><div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> naviguer</span><span><kbd>Entrée</kbd> ouvrir</span></div></div>'
         . '<div hidden>' . implode('', array_map(fn($i) => '<span data-icon-src="' . $i . '">' . icon($i) . '</span>',

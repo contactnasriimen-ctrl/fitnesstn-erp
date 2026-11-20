@@ -62,6 +62,7 @@ if (is_post()) {
             }
             foreach (['invoice_prefix', 'quote_prefix'] as $k) set_setting($k, mb_substr(preg_replace('/[^A-Za-z0-9\-_]/', '', (string)post($k)), 0, 8));
             set_setting('quote_validity_days', (string)max(0, min(365, (int)post('quote_validity_days'))));
+            set_setting('docs_shared', post('docs_shared') ? '1' : '0');
             set_setting('invoice_due_days', (string)max(0, min(365, (int)post('invoice_due_days'))));
             $color = (string)post('doc_color');
             if (preg_match('/^#[0-9a-f]{6}$/i', $color)) set_setting('doc_color', $color);
@@ -153,6 +154,7 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
   <label>Transport par défaut<input name="invoice_transport" value="<?= e($s('invoice_transport')) ?>"></label>
   <label>Garantie par défaut<input name="invoice_warranty" value="<?= e($s('invoice_warranty')) ?>"></label>
   <label>Couleur des documents<input type="color" name="doc_color" value="<?= e($s('doc_color', '#145c54')) ?>"></label>
+  <label class="check span2"><input type="checkbox" name="docs_shared" value="1" <?= $s('docs_shared', '1') === '1' ? 'checked' : '' ?>> Factures et devis visibles par toute l’équipe <small>(tous les showrooms, le marketing et le livreur les consultent ; décochez pour que chaque responsable ne voie que son showroom)</small></label>
   <div class="span2 img-field">
     <?php $stamp = $s('doc_stamp'); if ($stamp && is_file(APP_ROOT . '/' . $stamp)): ?><img src="<?= e($stamp) ?>" alt="Cachet" class="stamp-preview"><?php endif; ?>
     <label>Cachet et signature <small>(image PNG à fond transparent de préférence, imprimée sur les devis et factures)</small><input type="file" name="doc_stamp" accept="image/png,image/jpeg,image/webp"></label>

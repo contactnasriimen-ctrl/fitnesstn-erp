@@ -8,7 +8,7 @@ $isQuote = $type === 'devis';
 $route = doc_route($type);
 $label = DOC_TYPES[$type];
 $a = (string)get('a', 'list');
-$scope = scope_loc();
+$scope = doc_scope(); // null quand les factures sont partagées par toute l'équipe
 
 /* ---------- Points d'accès JSON ---------- */
 
@@ -50,7 +50,7 @@ if (is_post()) {
         $d = doc_get($id, $type);
         if (!$d) throw new RuntimeException('Document introuvable.');
         require_perm('invoices.edit');
-        if (!can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) throw new RuntimeException('Document introuvable.');
+        if (!doc_can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null)) throw new RuntimeException('Document introuvable.');
         switch ($a) {
             case 'status':
                 doc_set_status($d, (string)post('status'));
@@ -109,7 +109,7 @@ if ($a === 'edit') {
     }
     $days = (int)setting($isQuote ? 'quote_validity_days' : 'invoice_due_days', 0);
     $f = $d ?: [
-        'id' => 0, 'location_id' => $scope ?? ($_SESSION['pos_loc'] ?? (locations(true, 'showroom')[0]['id'] ?? null)),
+        'id' => 0, 'location_id' => scope_loc() ?? ($_SESSION['pos_loc'] ?? (locations(true, 'showroom')[0]['id'] ?? null)),
         'client_id' => null, 'client_name' => '', 'client_phone' => '', 'client_email' => '', 'client_address' => '', 'client_mf' => '',
         'date' => today(), 'due_date' => $days > 0 ? date('Y-m-d', strtotime("+$days days")) : null, 'discount' => 0, 'timbre' => (int)setting('timbre', 1000),
         'terms' => setting('invoice_terms', ''), 'transport' => setting('invoice_transport', ''), 'warranty' => setting('invoice_warranty', ''),
@@ -208,7 +208,7 @@ if ($a === 'edit') {
               <label><?= $isQuote ? 'Date du devis' : 'Date de facture' ?><input type="date" name="date" value="<?= e($f['date']) ?>" required></label>
               <label><?= $isQuote ? 'Valable jusqu’au' : 'Échéance' ?><input type="date" name="due_date" value="<?= e($f['due_date']) ?>"></label>
             </div>
-            <?php if (!$scope): ?>
+            <?php if (!scope_loc()): ?>
               <label>Showroom émetteur<select name="location_id"><?= opt(location_options(true), $f['location_id'], true, 'Aucun (siège)') ?></select></label>
             <?php endif; ?>
             <dl class="totals">
@@ -269,7 +269,7 @@ if ($a === 'view') {
     $sale = $d['sale_id'] ? one('SELECT id, number FROM sales WHERE id = ?', [$d['sale_id']]) : null;
     $rest = (int)$d['net'] - (int)$d['paid'];
     $editable = doc_editable($d);
-    $canEdit = can('invoices.edit') && can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null);
+    $canEdit = can('invoices.edit') && doc_can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null);
     $printUrl = url('doc', ['id' => $d['id']]);
     $wa = '';
     if ($d['client_phone']) {

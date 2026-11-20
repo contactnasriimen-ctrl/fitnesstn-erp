@@ -24,7 +24,7 @@ const PERMS = [
     'marketing' => [
         'dashboard', 'products.view', 'products.export', 'stock.view', 'stock.export', 'tasks', 'tasks.export', 'tasks.import',
         'campaigns.view', 'campaigns.edit', 'campaigns.export', 'campaigns.import', 'marketing.stats',
-        'clients.view', 'clients.export', 'io',
+        'clients.view', 'clients.export', 'io', 'invoices.view', 'invoices.export',
     ],
     // Livreur : tous les showrooms ; change le statut des livraisons, consulte ventes, devis, factures,
     // clients, produits et stock sans rien modifier (pas de caisse, de finances ni de prix d'achat).
@@ -64,6 +64,8 @@ function can(string $perm): bool
     $u = user();
     if (!$u) return false;
     if ($u['role'] === 'admin') return true;
+    // Le marketing consulte les factures seulement si elles sont partagées avec toute l'équipe (Paramètres)
+    if ($u['role'] === 'marketing' && str_starts_with($perm, 'invoices.') && !docs_shared()) return false;
     return in_array($perm, PERMS[$u['role']] ?? [], true);
 }
 

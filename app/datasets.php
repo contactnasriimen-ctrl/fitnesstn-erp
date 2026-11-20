@@ -439,7 +439,7 @@ function datasets(): array
             'cols' => ['date' => 'Date', 'number' => 'N°', 'status' => 'Statut', 'client' => 'Client', 'mf' => 'Matricule fiscal client', 'phone' => 'Téléphone',
                 'loc' => 'Showroom', 'ht' => 'Total HT', 'vat' => 'TVA', 'timbre' => 'Timbre', 'net' => 'Net TTC', 'paid' => 'Encaissé', 'rest' => 'Reste', 'due' => 'Échéance / validité'],
             'rows' => function (array $f) use ($type) {
-                $loc = export_scope($f);
+                $loc = docs_shared() ? ((int)($f['loc'] ?? 0) ?: null) : export_scope($f);
                 foreach (all('SELECT d.*, l.name loc FROM documents d LEFT JOIN locations l ON l.id = d.location_id WHERE d.type = ? AND d.date BETWEEN ? AND ?'
                     . ($loc ? ' AND d.location_id = ' . (int)$loc : '') . ' ORDER BY d.date, d.id', [$type, $f['from'], $f['to']]) as $r) {
                     $off = $r['status'] === 'annulee';

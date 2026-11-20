@@ -14,7 +14,8 @@ if (mb_strlen($term) >= 2) {
         }
     }
     if (can('invoices.view')) {
-        foreach (all('SELECT id, type, number, client_name, net FROM documents WHERE (number LIKE ? OR client_name LIKE ?)' . ($scope ? ' AND location_id = ' . (int)$scope : '') . ' ORDER BY id DESC LIMIT 6', [$like, $like]) as $r) {
+        $ds = doc_scope();
+        foreach (all('SELECT id, type, number, client_name, net FROM documents WHERE (number LIKE ? OR client_name LIKE ?)' . ($ds ? ' AND location_id = ' . (int)$ds : '') . ' ORDER BY id DESC LIMIT 6', [$like, $like]) as $r) {
             $out[] = ['g' => $r['type'] === 'devis' ? 'Devis' : 'Factures', 't' => $r['number'] . ' — ' . $r['client_name'], 's' => money($r['net']),
                 'h' => url(doc_route($r['type']), ['a' => 'view', 'id' => $r['id']]), 'i' => $r['type'] === 'devis' ? 'quote' : 'invoice'];
         }

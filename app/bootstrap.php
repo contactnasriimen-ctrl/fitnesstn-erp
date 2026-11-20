@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 define('DATA_DIR', APP_ROOT . '/data');
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const SESSION_IDLE_HOURS = 10; // déconnexion automatique après 10 h sans activité
 
 date_default_timezone_set('Africa/Tunis');
