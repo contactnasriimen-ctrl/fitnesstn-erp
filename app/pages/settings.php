@@ -60,13 +60,13 @@ if (is_post()) {
                 'invoice_warranty' => 160, 'warranty_notice' => 2000, 'bank_name' => 120, 'bank_rib' => 60, 'bank_iban' => 60, 'bank_bic' => 20] as $k => $max) {
                 set_setting($k, mb_substr((string)post($k), 0, $max));
             }
-            foreach (['invoice_prefix', 'quote_prefix'] as $k) set_setting($k, mb_substr(preg_replace('/[^A-Za-z0-9\-_]/', '', (string)post($k)), 0, 8));
+            foreach (['invoice_prefix', 'quote_prefix', 'bl_prefix'] as $k) if (isset($_POST[$k])) set_setting($k, mb_substr(preg_replace('/[^A-Za-z0-9\-_]/', '', (string)post($k)), 0, 8));
             set_setting('quote_validity_days', (string)max(0, min(365, (int)post('quote_validity_days'))));
             set_setting('docs_shared', post('docs_shared') ? '1' : '0');
             set_setting('invoice_due_days', (string)max(0, min(365, (int)post('invoice_due_days'))));
             $color = (string)post('doc_color');
             if (preg_match('/^#[0-9a-f]{6}$/i', $color)) set_setting('doc_color', $color);
-            foreach (['facture' => 'next_invoice', 'devis' => 'next_quote'] as $t => $field) {
+            foreach (['facture' => 'next_invoice', 'devis' => 'next_quote', 'bl' => 'next_bl'] as $t => $field) {
                 $n = (int)post($field);
                 if ($n > 0 && $n !== doc_next_number($t)) doc_set_next_number($t, $n);
             }
@@ -148,9 +148,11 @@ layout_start('Paramètres', 'settings', ['actions' => '<a class="btn sm ghost" h
   <label>Prochain numéro de facture (<?= date('Y') ?>)<input name="next_invoice" type="number" min="1" value="<?= doc_next_number('facture') ?>"><small>Pour continuer la numérotation de vos factures papier.</small></label>
   <label>Préfixe des devis<input name="quote_prefix" value="<?= e($s('quote_prefix', 'DV-')) ?>" maxlength="8"></label>
   <label>Prochain numéro de devis (<?= date('Y') ?>)<input name="next_quote" type="number" min="1" value="<?= doc_next_number('devis') ?>"></label>
+  <label>Préfixe des bons de livraison<input name="bl_prefix" value="<?= e($s('bl_prefix', 'BL-')) ?>" maxlength="8"><small>Format : <?= e($s('bl_prefix', 'BL-')) ?>000001/<?= date('y') ?></small></label>
+  <label>Prochain numéro de bon de livraison (<?= date('Y') ?>)<input name="next_bl" type="number" min="1" value="<?= doc_next_number('bl') ?>"></label>
   <label>Validité des devis (jours)<input name="quote_validity_days" type="number" min="0" max="365" value="<?= e($s('quote_validity_days', 15)) ?>"></label>
   <label>Échéance des factures (jours)<input name="invoice_due_days" type="number" min="0" max="365" value="<?= e($s('invoice_due_days', 0)) ?>"><small>0 = pas d’échéance affichée (paiement comptant).</small></label>
-  <label>Conditions de paiement par défaut<input name="invoice_terms" value="<?= e($s('invoice_terms')) ?>"></label>
+  <label>Conditions de paiement par défaut <small>(facultatif — la modalité se choisit dans « Transporteurs & paiements »)</small><input name="invoice_terms" value="<?= e($s('invoice_terms')) ?>"></label>
   <label>Transport par défaut<input name="invoice_transport" value="<?= e($s('invoice_transport')) ?>"></label>
   <label>Garantie par défaut<input name="invoice_warranty" value="<?= e($s('invoice_warranty')) ?>"></label>
   <label>Couleur des documents<input type="color" name="doc_color" value="<?= e($s('doc_color', '#145c54')) ?>"></label>

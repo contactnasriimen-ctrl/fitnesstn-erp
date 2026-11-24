@@ -148,6 +148,8 @@ if (can('invoices.view')) {
     if ((int)$od['n']) $alerts[] = ['err', (int)$od['n'] . ' facture(s) en retard de paiement : ' . money($od['t']) . ' à encaisser.', url('invoices', ['status' => 'late', 'from' => '2000-01-01']), 'Voir'];
     $acc = one("SELECT COUNT(*) n, COALESCE(SUM(net),0) t FROM documents WHERE type = 'devis' AND status = 'accepte'$dl");
     if ((int)$acc['n']) $alerts[] = ['info', (int)$acc['n'] . ' devis accepté(s) à facturer (' . money0($acc['t']) . ').', url('quotes', ['status' => 'accepte', 'from' => '2000-01-01']), 'Facturer'];
+    $bl = one("SELECT COUNT(*) n FROM documents WHERE type = 'bl' AND status = 'a_livrer'$dl");
+    if ((int)$bl['n']) $alerts[] = ['info', (int)$bl['n'] . ' bon(s) de livraison à livrer.', url('delivery_notes', ['status' => 'a_livrer', 'from' => '2000-01-01']), 'Voir'];
 }
 ?>
 <?php if ($role === 'admin'): ?>

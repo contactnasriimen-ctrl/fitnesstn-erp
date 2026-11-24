@@ -399,8 +399,112 @@ async function main() {
   r = await liv.form('index.php?r=deliveries&a=save', { id: nabShip, recipient: 'X', status: 'a_preparer' });
   ok(r.status === 403 || r.text.includes('Accès refusé'), 'livreur : ne peut pas modifier la livraison');
 
+  console.log('Bons de livraison, transporteurs & modalités de paiement');
+  for (const p of ['delivery_notes', 'delivery_notes&a=edit', 'doc_lists']) {
+    r = await admin.follow('index.php?r=' + p);
+    ok(r.status === 200 && clean(r.text), `GET ${p}`);
+  }
+  r = await admin.follow('index.php?r=doc_lists');
+  ok(['Comptant à la livraison', 'Chèque', 'Virement', 'Traite'].every((m) => r.text.includes(m)), 'modalités de départ : comptant à la livraison, chèque, virement, traite');
+  r = await admin.form('index.php?r=doc_lists&a=tr_save', { id: '0', name: 'Omar Ben Salah', plate: '245 tu  7788', cin: '12345678' });
+  ok(r.text.includes('Transporteur ajouté') && r.text.includes('245 TU 7788'), 'transporteur ajouté (matricule en majuscules)');
+  const trId = +((r.text.match(/tr=(\d+)#transporteurs" title="Modifier Omar Ben Salah"/) || [])[1] || 0);
+  r = await admin.form('index.php?r=doc_lists&a=tr_save', { id: '0', name: 'Mauvaise CIN', plate: '', cin: '1234' });
+  ok(r.text.includes('8 chiffres') && !r.text.includes('Transporteur ajouté'), 'CIN de 4 chiffres refusée');
+  r = await admin.form('index.php?r=doc_lists&a=tr_save', { id: String(trId), name: 'Omar Ben Salah', plate: '245 TU 7788', cin: '11223344' });
+  ok(r.text.includes('Transporteur modifié') && r.text.includes('11223344'), 'transporteur modifié');
+  r = await admin.form('index.php?r=doc_lists&a=pm_save', { id: '0', label: 'Carte bancaire' });
+  ok(r.text.includes('Modalité de paiement ajoutée') && r.text.includes('Carte bancaire'), 'modalité ajoutée');
+  r = await admin.form('index.php?r=doc_lists&a=pm_save', { id: '0', label: 'chèque' });
+  ok(r.text.includes('existe déjà'), 'modalité en double refusée');
+  const pmId = (lab) => +((r.text.match(new RegExp('pm=(\\d+)#modalites" title="Modifier" aria-label="Modifier ' + lab + '"')) || [])[1] || 0);
+  r = await admin.follow('index.php?r=doc_lists');
+  const traite = pmId('Traite'), carte = pmId('Carte bancaire');
+  r = await admin.form('index.php?r=doc_lists&a=pm_default', { id: String(traite) });
+  ok(r.text.includes('« Traite » est proposée par défaut'), 'modalité par défaut : traite');
+  r = await admin.form('index.php?r=doc_lists&a=pm_save', { id: String(carte), label: 'Carte bancaire (TPE)' });
+  ok(r.text.includes('Modalité de paiement modifiée') && r.text.includes('Carte bancaire (TPE)'), 'modalité renommée');
+  r = await admin.form('index.php?r=doc_lists&a=pm_move', { id: String(carte), dir: '-1' });
+  ok(r.text.indexOf('Carte bancaire (TPE)') < r.text.indexOf('<b>Traite</b>'), 'modalité remontée dans la liste');
+  r = await admin.follow('index.php?r=invoices&a=edit');
+  ok(r.text.includes('<option value="Traite" selected>') && r.text.includes('data-tr-pick') && r.text.includes('Omar Ben Salah · 245 TU 7788'), 'nouvelle facture : traite par défaut, transporteurs proposés');
+  r = await mk.form('index.php?r=doc_lists&a=tr_save', { id: '0', name: 'Pirate', plate: '', cin: '' });
+  ok(r.text.includes('ne permet pas de modifier ces listes'), 'marketing : listes en lecture seule');
+
+  const today = new Date().toISOString().slice(0, 10);
+  const blLine = (qty) => ({ 'client[name]': 'Gym Carthage', 'client[phone]': '98 111 222', date: today, location_id: '1',
+    'items[0][product_id]': String(corde.id), 'items[0][label]': 'CORDE A SAUTER SPEED', 'items[0][qty]': String(qty), 'items[0][unit_price]': '49', 'items[0][vat_rate]': '19' });
+  r = await admin.form('index.php?r=invoices&a=save', { ...blLine(1), timbre: '1', payment_mode: 'Chèque', 'transporter[id]': String(trId), 'transporter[name]': 'Omar Ben Salah',
+    'transporter[plate]': '245 TU 7788', 'transporter[cin]': '1234567' });
+  ok(r.text.includes('8 chiffres') && r.text.includes('Gym Carthage'), 'facture : CIN invalide refusée, saisie conservée');
+  const s0 = await stockOf(corde.id);
+  r = await admin.form('index.php?r=invoices&a=save', { ...blLine(1), timbre: '1', stock: '1', payment_mode: 'Chèque', terms: 'Chèque à 30 jours', 'transporter[id]': String(trId),
+    'transporter[name]': 'Omar Ben Salah', 'transporter[plate]': '245 TU 7788', 'transporter[cin]': '11223344' });
+  const fInv = docId(r.text);
+  ok(clean(r.text) && r.text.includes('Facture créée') && r.text.includes('Chèque à 30 jours') && r.text.includes('CIN 11223344'), 'facture avec modalité et transporteur');
+  ok((await stockOf(corde.id)) === s0 - 1, 'facture : stock sorti');
+  r = await admin.follow('index.php?r=doc&id=' + fInv);
+  ok(['Modalité de paiement', 'Chèque', 'Matricule du véhicule', '245 TU 7788', 'Omar Ben Salah', '11223344'].every((x) => r.text.includes(x)), 'facture A4 : modalité, transporteur, matricule et CIN');
+  r = await admin.form('index.php?r=invoices&a=convert', { id: String(fInv), to: 'bl', stock: '1' });
+  const bl1 = docId(r.text);
+  ok(clean(r.text) && /Bon de livraison BL-000001\/\d\d/.test(r.text) && r.text.includes('Bon de livraison créé à partir de la facture'), 'bon de livraison BL-000001 créé depuis la facture');
+  ok((await stockOf(corde.id)) === s0 - 1, 'BL issu d’une facture : le stock n’est pas sorti deux fois');
+  ok(r.text.includes('accompagne la facture') && !r.text.includes('Établir la facture'), 'BL issu d’une facture : pas de seconde facture proposée');
+  r = await admin.form('index.php?r=delivery_notes&a=convert', { id: String(bl1), to: 'facture' });
+  ok(r.text.includes('déjà lié à la facture'), 'BL issu d’une facture : seconde facture refusée');
+  r = await admin.follow('index.php?r=doc&id=' + bl1 + '&noprice=1');
+  ok(r.text.includes('BON DE LIVRAISON') && !r.text.includes('P.U. HT') && r.text.includes('Signature du transporteur') && r.text.includes('Nombre d’articles'), 'BL sans prix : articles, quantités et signatures');
+  r = await admin.follow('index.php?r=doc&id=' + bl1);
+  ok(r.text.includes('P.U. HT') && r.text.includes('Livré à') && r.text.includes('Reçu par le client'), 'BL avec prix');
+  r = await admin.form('index.php?r=delivery_notes&a=status', { id: String(bl1), status: 'livre' });
+  ok(r.text.includes('Statut mis à jour : Livré') && r.text.includes('Livré au client'), 'BL marqué livré');
+
+  // BL direct, nouveau transporteur saisi et enregistré dans la liste, puis facturé
+  const s1b = await stockOf(corde.id);
+  r = await tunis.form('index.php?r=delivery_notes&a=save', { ...blLine(2), stock: '1', timbre: '1', due_date: '2020-01-01', payment_mode: 'Comptant à la livraison',
+    'transporter[id]': '', 'transporter[name]': 'Transport Sami', 'transporter[plate]': '120 tu 3344', 'transporter[cin]': '87654321', 'transporter[save]': '1' });
+  const bl2 = docId(r.text);
+  ok(clean(r.text) && /Bon de livraison BL-000002\//.test(r.text) && r.text.includes('Bon de livraison créé.'), 'showroom : BL créé directement');
+  ok(!r.text.includes('Timbre fiscal') && (await stockOf(corde.id)) === s1b - 2, 'BL : pas de timbre, stock sorti');
+  r = await admin.follow('index.php?r=doc_lists');
+  ok(r.text.includes('Transport Sami') && r.text.includes('120 TU 3344'), 'nouveau transporteur ajouté à la liste depuis le BL');
+  r = await admin.follow('index.php?r=delivery_notes');
+  ok(r.text.includes('Transport Sami') && r.text.includes('BL-000002/') && r.text.includes('À livrer'), 'liste des BL : transporteur et statut');
+  r = await admin.follow('index.php?r=delivery_notes&q=3344');
+  ok(r.text.includes('BL-000002/') && !r.text.includes('BL-000001/'), 'recherche d’un BL par matricule');
+  r = await admin.form('index.php?r=delivery_notes&a=convert', { id: String(bl2), to: 'facture' });
+  const fBl = docId(r.text);
+  ok(clean(r.text) && r.text.includes('Facture créée à partir du bon de livraison') && r.text.includes('Transport Sami'), 'facture établie depuis le BL (transporteur repris)');
+  ok((await stockOf(corde.id)) === s1b - 2 && r.text.includes('Sorti par le bon de livraison'), 'facture d’un BL : le stock n’est pas sorti deux fois');
+  r = await admin.follow('index.php?r=delivery_notes&a=view&id=' + bl2);
+  ok(r.text.includes('Facturé') && r.text.includes('annulez ou supprimez d’abord la facture'), 'BL facturé : suppression bloquée tant que la facture existe');
+  r = await admin.form('index.php?r=delivery_notes&a=delete', { id: String(bl2) });
+  ok(r.text.includes('annulez ou supprimez d’abord la facture'), 'BL facturé : suppression refusée');
+  r = await admin.form('index.php?r=invoices&a=cancel', { id: String(fBl), reason: 'Test BL' });
+  r = await admin.follow('index.php?r=delivery_notes&a=view&id=' + bl2);
+  ok(r.text.includes('Établir la facture') && r.text.includes('>Livré<'), 'facture annulée : le BL redevient « livré » et facturable');
+  r = await admin.form('index.php?r=delivery_notes&a=delete', { id: String(bl2) });
+  ok(r.text.includes('BL-000002/') && r.text.includes('supprimé') && r.text.includes('prochain bon de livraison') && (await stockOf(corde.id)) === s1b, 'BL supprimé : stock remis, numéro libéré');
+  r = await admin.follow('index.php?r=settings');
+  ok(r.text.includes('name="next_bl" type="number" min="1" value="2"'), 'paramètres : prochain BL n° 2');
+  r = await admin.follow('index.php?r=io&a=export&ds=bons_livraison&from=2026-01-01&to=2030-12-31');
+  ok(r.text.includes('CIN transporteur') && r.text.includes('BL-000001/') && r.text.includes('11223344'), 'export CSV des bons de livraison');
+  r = await admin.req('index.php?r=search&q=BL-0000');
+  ok(r.text.includes('Bons de livraison'), 'recherche globale : BL trouvé');
+
+  // Supprimer des éléments des listes ne change pas les documents établis
+  r = await admin.form('index.php?r=doc_lists&a=tr_delete', { id: String(trId) });
+  ok(r.text.includes('Transporteur « Omar Ben Salah » supprimé'), 'transporteur supprimé');
+  r = await admin.follow('index.php?r=doc&id=' + fInv);
+  ok(r.text.includes('Omar Ben Salah') && r.text.includes('245 TU 7788'), 'la facture garde le transporteur supprimé de la liste');
+  r = await admin.follow('index.php?r=doc_lists');
+  r = await admin.form('index.php?r=doc_lists&a=pm_delete', { id: String(pmId('Chèque')) });
+  ok(r.text.includes('Modalité « Chèque » retirée'), 'modalité supprimée');
+  r = await admin.follow('index.php?r=invoices&a=edit&id=' + fInv);
+  ok(r.text.includes('<option value="Chèque" selected>'), 'la facture garde sa modalité retirée de la liste');
+
   console.log('Pages finales sans erreur');
-  for (const p of ['dashboard', 'finances', 'finances&a=receivables', 'marketing&a=stats', 'audit', 'clients&a=view&id=1']) {
+  for (const p of ['dashboard', 'finances', 'finances&a=receivables', 'marketing&a=stats', 'audit', 'clients&a=view&id=1', 'delivery_notes', 'invoices', 'doc_lists']) {
     r = await admin.follow('index.php?r=' + p);
     ok(r.status === 200 && clean(r.text), 'GET ' + p);
   }

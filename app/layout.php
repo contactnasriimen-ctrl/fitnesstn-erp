@@ -49,6 +49,9 @@ function icon(string $name, string $cls = 'ic'): string
         'sidebar' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 10l-2 2 2 2"/>',
         'enter' => '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="M9 11l-4 4 4 4"/>',
         'tool' => '<path d="M14.5 5.5a4 4 0 0 0 4.9 4.9l-9.2 9.2a2.1 2.1 0 0 1-3-3l9.2-9.2a4 4 0 0 0-1.9-1.9z"/><path d="M14.5 5.5l2.6-2.6a4 4 0 0 1 4 4l-2.6 2.6"/>',
+        'clipboard' => '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 11h6M9 15h4"/>',
+        'up' => '<path d="M6 15l6-6 6 6"/>',
+        'down' => '<path d="M6 9l6 6 6-6"/>',
         'spark' => '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
     ];
     return '<svg class="' . e($cls) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . ($p[$name] ?? '') . '</svg>';
@@ -64,6 +67,7 @@ function nav_items(): array
         ['sales', 'Ventes', 'receipt', 'sales.view'],
         ['quotes', 'Devis', 'quote', 'invoices.view'],
         ['invoices', 'Factures', 'invoice', 'invoices.view'],
+        ['delivery_notes', 'Bons de livraison', 'clipboard', 'invoices.view'],
         ['clients', 'Clients', 'users', 'clients.view'],
         ['-', 'Catalogue & logistique', '', ''],
         ['products', 'Produits', 'box', 'products.view'],
@@ -105,6 +109,7 @@ function quick_actions(): array
     if (can('invoices.edit')) {
         $a[] = ['Devis', url('quotes', ['a' => 'edit']), 'quote'];
         $a[] = ['Facture', url('invoices', ['a' => 'edit']), 'invoice'];
+        $a[] = ['Bon de livraison', url('delivery_notes', ['a' => 'edit']), 'clipboard'];
     }
     if (can('clients.edit')) $a[] = ['Client', url('clients', ['a' => 'edit']), 'users'];
     if (can('repairs.edit')) $a[] = ['Réparation', url('repairs', ['a' => 'edit']), 'tool'];

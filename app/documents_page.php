@@ -1,12 +1,19 @@
 <?php
 declare(strict_types=1);
 
-// Devis et factures : liste, saisie et fiche. $DOC_TYPE est fixé par pages/quotes.php ou pages/invoices.php.
+// Devis, factures et bons de livraison : liste, saisie et fiche.
+// $DOC_TYPE est fixé par pages/quotes.php, pages/invoices.php ou pages/delivery_notes.php.
 require_perm('invoices.view');
 $type = $DOC_TYPE;
 $isQuote = $type === 'devis';
+$isInvoice = $type === 'facture';
+$isBl = $type === 'bl';
+$fem = doc_fem($type);
 $route = doc_route($type);
 $label = DOC_TYPES[$type];
+$plural = ['devis' => 'Devis', 'facture' => 'Factures', 'bl' => 'Bons de livraison'][$type];
+$this_ = ['devis' => 'ce devis', 'facture' => 'cette facture', 'bl' => 'ce bon de livraison'][$type];
+$newLabel = ['devis' => 'Nouveau devis', 'facture' => 'Nouvelle facture', 'bl' => 'Nouveau bon de livraison'][$type];
 $a = (string)get('a', 'list');
 $scope = doc_scope(); // null quand les factures sont partagées par toute l'équipe
 
@@ -41,16 +48,17 @@ if (is_post()) {
             $newId = doc_save([
                 'type' => $type, 'id' => $id, 'location_id' => post('location_id'), 'client' => (array)($_POST['client'] ?? []),
                 'date' => post('date'), 'due_date' => post('due_date'), 'items' => array_values((array)($_POST['items'] ?? [])),
-                'discount' => post('discount'), 'timbre' => post('timbre'), 'terms' => post('terms'), 'transport' => post('transport'),
+                'discount' => post('discount'), 'timbre' => post('timbre'), 'payment_mode' => post('payment_mode'), 'terms' => post('terms'),
+                'transport' => post('transport'), 'transporter' => (array)($_POST['transporter'] ?? []),
                 'warranty' => post('warranty'), 'notes' => post('notes'), 'internal_note' => post('internal_note'), 'stock' => post('stock'),
             ]);
-            flash('ok', $label . ($id ? ' enregistré' : ' créé') . ($isQuote ? '.' : 'e.'));
+            flash('ok', $label . ($id ? ' enregistré' : ' créé') . ($fem ? 'e.' : '.'));
             redirect($back($newId));
         }
         if ($a === 'bulk_delete') {
             require_perm('invoices.edit');
             [$done, $errors] = doc_delete_many((array)($_POST['ids'] ?? []), $type);
-            if ($done) flash('ok', $done . ' ' . ($isQuote ? 'devis supprimé(s)' : 'facture(s) supprimée(s)') . '.');
+            if ($done) flash('ok', $done . ' ' . ['devis' => 'devis supprimé(s)', 'facture' => 'facture(s) supprimée(s)', 'bl' => 'bon(s) de livraison supprimé(s)'][$type] . '.');
             if ($errors) flash('err', implode(' — ', array_slice($errors, 0, 3)) . (count($errors) > 3 ? ' (+' . (count($errors) - 3) . ')' : ''));
             if (!$done && !$errors) flash('err', 'Aucun document sélectionné.');
             redirect((string)(post('back') ?: url($route)));
@@ -62,15 +70,16 @@ if (is_post()) {
         switch ($a) {
             case 'status':
                 doc_set_status($d, (string)post('status'));
-                flash('ok', 'Statut mis à jour : ' . DOC_STATUS['devis'][(string)post('status')] . '.');
+                flash('ok', 'Statut mis à jour : ' . DOC_STATUS[$type][(string)post('status')] . '.');
                 break;
             case 'convert':
-                $newId = doc_copy($d, 'facture', (bool)post('stock'));
-                flash('ok', 'Facture créée à partir du devis ' . $d['number'] . '.');
-                redirect(url('invoices', ['a' => 'view', 'id' => $newId]));
+                $to = post('to') === 'bl' ? 'bl' : 'facture';
+                $newId = doc_copy($d, $to, (bool)post('stock'));
+                flash('ok', ($to === 'bl' ? 'Bon de livraison créé' : 'Facture créée') . ' à partir ' . ['devis' => 'du devis ', 'facture' => 'de la facture ', 'bl' => 'du bon de livraison '][$type] . $d['number'] . '.');
+                redirect(url(doc_route($to), ['a' => 'view', 'id' => $newId]));
             case 'duplicate':
                 $newId = doc_copy($d, $type);
-                flash('ok', $label . ' dupliqué' . ($isQuote ? '' : 'e') . ' : vérifiez les prix et la date.');
+                flash('ok', $label . ' dupliqué' . ($fem ? 'e' : '') . ' : vérifiez les prix et la date.');
                 redirect(url($route, ['a' => 'edit', 'id' => $newId]));
             case 'pay':
                 doc_add_payment($d, (string)post('method'), (int)parse_money(post('amount')), (string)post('reference'), parse_date(post('date')));
@@ -85,9 +94,10 @@ if (is_post()) {
                 flash('ok', 'Facture annulée' . ($d['stock_applied'] ? ' : articles remis en stock.' : '.'));
                 break;
             case 'delete':
-                $wasLast = !$isQuote && doc_invoice_is_last($d);
+                $wasLast = !$isQuote && doc_is_last($d);
                 doc_delete($d);
-                flash('ok', $isQuote ? 'Devis ' . $d['number'] . ' supprimé.' : 'Facture ' . $d['number'] . ' supprimée' . ($wasLast ? ' : son numéro sera repris par la prochaine facture.' : '.'));
+                flash('ok', $label . ' ' . $d['number'] . ' supprimé' . ($fem ? 'e' : '')
+                    . ($wasLast ? ' : son numéro sera repris par ' . ($isBl ? 'le prochain bon de livraison.' : 'la prochaine facture.') : '.'));
                 redirect(url($route));
             case 'internal_note':
                 update('documents', ['internal_note' => mb_substr((string)post('internal_note'), 0, 1000), 'updated_at' => now()], 'id = ?', [$d['id']]);
@@ -116,13 +126,14 @@ if ($a === 'edit') {
         flash('err', 'Ce document ne peut plus être modifié.');
         redirect(url($route, ['a' => 'view', 'id' => $id]));
     }
-    $days = (int)setting($isQuote ? 'quote_validity_days' : 'invoice_due_days', 0);
+    $days = $isBl ? 0 : (int)setting($isQuote ? 'quote_validity_days' : 'invoice_due_days', 0);
     $f = $d ?: [
         'id' => 0, 'location_id' => scope_loc() ?? ($_SESSION['pos_loc'] ?? (locations(true, 'showroom')[0]['id'] ?? null)),
         'client_id' => null, 'client_name' => '', 'client_phone' => '', 'client_email' => '', 'client_address' => '', 'client_mf' => '',
-        'date' => today(), 'due_date' => $days > 0 ? date('Y-m-d', strtotime("+$days days")) : null, 'discount' => 0, 'timbre' => (int)setting('timbre', 1000),
-        'terms' => setting('invoice_terms', ''), 'transport' => setting('invoice_transport', ''), 'warranty' => setting('invoice_warranty', ''),
-        'notes' => '', 'internal_note' => '', 'stock_applied' => 1, 'sale_id' => null,
+        'date' => today(), 'due_date' => $days > 0 ? date('Y-m-d', strtotime("+$days days")) : null, 'discount' => 0, 'timbre' => $isBl ? 0 : (int)setting('timbre', 1000),
+        'payment_mode' => setting('invoice_payment_mode', ''), 'terms' => setting('invoice_terms', ''), 'transport' => setting('invoice_transport', ''),
+        'transporter_id' => null, 'transporter_name' => '', 'transporter_plate' => '', 'transporter_cin' => '',
+        'warranty' => setting('invoice_warranty', ''), 'notes' => '', 'internal_note' => '', 'stock_applied' => 1, 'sale_id' => null,
     ];
     $items = $d ? doc_items((int)$d['id']) : [];
     if (!$d && ($cid = (int)get('client')) && ($c = one('SELECT * FROM clients WHERE id = ?', [$cid]))) {
@@ -137,6 +148,8 @@ if ($a === 'edit') {
             'client_phone' => $cl['phone'] ?? '', 'client_email' => $cl['email'] ?? '', 'client_address' => $cl['address'] ?? '', 'client_mf' => $cl['mf'] ?? '',
             'date' => $p['date'] ?? $f['date'], 'due_date' => $p['due_date'] ?? null, 'discount' => parse_money($p['discount'] ?? 0) ?? 0,
             'timbre' => !empty($p['timbre']) ? 1 : 0, 'terms' => $p['terms'] ?? '', 'transport' => $p['transport'] ?? '', 'warranty' => $p['warranty'] ?? '',
+            'payment_mode' => $p['payment_mode'] ?? '', 'transporter_id' => $p['transporter']['id'] ?? null, 'transporter_name' => $p['transporter']['name'] ?? '',
+            'transporter_plate' => $p['transporter']['plate'] ?? '', 'transporter_cin' => $p['transporter']['cin'] ?? '',
             'notes' => $p['notes'] ?? '', 'internal_note' => $p['internal_note'] ?? '', 'stock_applied' => !empty($p['stock']) ? 1 : 0]);
         $items = array_map(fn($it) => ['product_id' => $it['product_id'] ?? null, 'label' => $it['label'] ?? '', 'description' => $it['description'] ?? '',
             'qty' => $it['qty'] ?? 1, 'unit_price' => parse_money($it['unit_price'] ?? 0) ?? 0, 'discount_pct' => $it['discount_pct'] ?? 0,
@@ -149,12 +162,14 @@ if ($a === 'edit') {
     $jsItems = array_map(fn($it) => ['product_id' => $it['product_id'] ? (int)$it['product_id'] : null, 'label' => $it['label'], 'description' => $it['description'] ?? '',
         'qty' => (int)$it['qty'], 'unit_price' => (int)$it['unit_price'], 'discount_pct' => (float)$it['discount_pct'], 'vat_rate' => (float)$it['vat_rate'],
         'sku' => $it['sku'] ?? '', 'w' => $it['warranty_months'] ?? null], $items);
+    $trList = array_map(fn($t) => ['id' => (int)$t['id'], 'name' => $t['name'], 'plate' => $t['plate'], 'cin' => $t['cin']], transporters());
     $data = ['products' => $products, 'items' => $jsItems, 'vat' => (float)setting('vat_rate', 19), 'timbre' => (int)setting('timbre', 1000),
-        'clientsUrl' => url($route, ['a' => 'clients'])];
-    $title = $d ? 'Modifier ' . mb_strtolower($label) . ' ' . $d['number'] : ($isQuote ? 'Nouveau devis' : 'Nouvelle facture');
+        'clientsUrl' => url($route, ['a' => 'clients']), 'transporters' => $trList];
+    $stockLink = $d ? doc_stock_link($d) : null;
+    $title = $d ? 'Modifier ' . mb_strtolower($label) . ' ' . $d['number'] : $newLabel;
     layout_start($title, $route, ['wide' => true]);
     ?>
-    <p><a class="back" href="<?= e($d ? url($route, ['a' => 'view', 'id' => $d['id']]) : url($route)) ?>"><?= icon('left') ?><?= $d ? e($d['number']) : ($isQuote ? 'Devis' : 'Factures') ?></a></p>
+    <p><a class="back" href="<?= e($d ? url($route, ['a' => 'view', 'id' => $d['id']]) : url($route)) ?>"><?= icon('left') ?><?= $d ? e($d['number']) : e($plural) ?></a></p>
     <form method="post" action="<?= e(url($route, ['a' => 'save'])) ?>" class="doc-editor" data-doc-form novalidate>
       <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$f['id'] ?>">
       <div class="doc-grid">
@@ -200,23 +215,42 @@ if ($a === 'edit') {
           </section>
 
           <section class="card form-grid">
-            <h2 class="span2"><span class="step">3</span>Conditions & mentions</h2>
-            <label>Conditions de paiement<input name="terms" value="<?= e($f['terms']) ?>" list="dl-terms"></label>
-            <label>Transport<input name="transport" value="<?= e($f['transport']) ?>" list="dl-transport"></label>
-            <label>Garantie<input name="warranty" value="<?= e($f['warranty']) ?>"></label>
-            <label>Note imprimée sur le document<input name="notes" value="<?= e($f['notes']) ?>" maxlength="1000" placeholder="Ex. délai de livraison, couleur…"></label>
+            <h2 class="span2"><span class="step">3</span>Paiement, transport & mentions</h2>
+            <label>Modalité de paiement<select name="payment_mode" data-pay-mode><?= opt(payment_mode_options((string)$f['payment_mode']), $f['payment_mode'], true, 'Non précisée') ?></select></label>
+            <label>Conditions de paiement<input name="terms" value="<?= e($f['terms']) ?>" list="dl-terms" maxlength="300" placeholder="Facultatif : traite à 60 jours, acompte de 30 %…"></label>
+            <label>Transport<input name="transport" value="<?= e($f['transport']) ?>" list="dl-transport" maxlength="120"></label>
+            <label>Garantie<input name="warranty" value="<?= e($f['warranty']) ?>" maxlength="160"></label>
+
+            <h3 class="span2 tr-head">Transporteur <small class="muted">imprimé sur <?= $isBl ? 'le bon de livraison' : ($isQuote ? 'le devis' : 'la facture') ?></small>
+              <a class="tr-manage" href="<?= e(url('doc_lists')) ?>" target="_blank" rel="noopener">Gérer la liste</a></h3>
+            <input type="hidden" name="transporter[id]" value="<?= e($f['transporter_id']) ?>" data-tr="id">
+            <label<?= $trList ? '' : ' hidden' ?>>Transporteur enregistré<select data-tr-pick aria-label="Choisir un transporteur enregistré">
+              <option value="">Nouveau transporteur ou aucun</option>
+              <?php foreach ($trList as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$f['transporter_id'] === $t['id'] ? ' selected' : '' ?>><?= e($t['name'] . ($t['plate'] ? ' · ' . $t['plate'] : '')) ?></option><?php endforeach; ?>
+            </select></label>
+            <label>Nom du transporteur<input name="transporter[name]" value="<?= e($f['transporter_name']) ?>" data-tr="name" maxlength="120" autocomplete="off" placeholder="Nom et prénom ou société"></label>
+            <label>Matricule du véhicule<input name="transporter[plate]" value="<?= e($f['transporter_plate']) ?>" data-tr="plate" maxlength="20" autocomplete="off" placeholder="Ex. 245 TU 7788"></label>
+            <label>CIN du chauffeur<input name="transporter[cin]" value="<?= e($f['transporter_cin']) ?>" data-tr="cin" maxlength="20" autocomplete="off" inputmode="numeric" placeholder="8 chiffres"></label>
+            <label class="check span2" data-tr-save-wrap hidden><input type="checkbox" name="transporter[save]" value="1" checked> Ajouter ce transporteur à la liste <small class="muted">(pour le choisir en un clic la prochaine fois)</small></label>
+
+            <h3 class="span2">Mentions</h3>
+            <label class="span2">Note imprimée sur le document<input name="notes" value="<?= e($f['notes']) ?>" maxlength="1000" placeholder="Ex. délai de livraison, couleur…"></label>
             <label class="span2">Note interne <small>(non imprimée)</small><textarea name="internal_note" rows="2" maxlength="1000"><?= e($f['internal_note']) ?></textarea></label>
-            <datalist id="dl-terms"><option>Paiement comptant à la livraison</option><option>Paiement comptant à la commande</option><option>Acompte de 30 % à la commande, solde à la livraison</option><option>Virement bancaire à 30 jours</option><option>Paiement par chèque</option></datalist>
+            <datalist id="dl-terms"><option>Acompte de 30 % à la commande, solde à la livraison</option><option>Traite à 30 jours</option><option>Traite à 60 jours</option><option>Virement à 30 jours</option><option>Chèque à l’encaissement</option></datalist>
             <datalist id="dl-transport"><option>Gratuit</option><option>À la charge du client</option><option>Livraison et installation incluses</option></datalist>
           </section>
         </div>
 
         <aside class="doc-side">
           <section class="card doc-summary">
+            <?php if ($isBl): ?>
+              <label>Date de livraison<input type="date" name="date" value="<?= e($f['date']) ?>" required></label>
+            <?php else: ?>
             <div class="grid2 tight">
               <label><?= $isQuote ? 'Date du devis' : 'Date de facture' ?><input type="date" name="date" value="<?= e($f['date']) ?>" required></label>
               <label><?= $isQuote ? 'Valable jusqu’au' : 'Échéance' ?><input type="date" name="due_date" value="<?= e($f['due_date']) ?>"></label>
             </div>
+            <?php endif; ?>
             <?php if (!scope_loc()): ?>
               <label>Showroom émetteur<select name="location_id"><?= opt(location_options(true), $f['location_id'], true, 'Aucun (siège)') ?></select></label>
             <?php endif; ?>
@@ -225,16 +259,20 @@ if ($a === 'edit') {
               <div class="disc"><dt><label for="doc-disc">Remise globale (DT)</label></dt><dd><input id="doc-disc" name="discount" inputmode="decimal" value="<?= e(m_in($f['discount'])) ?>" placeholder="0" data-discount></dd></div>
               <div><dt>Total HT</dt><dd data-t="ht">0,000</dd></div>
               <div data-vat-rows></div>
+              <?php if (!$isBl): ?>
               <div class="timbre"><dt><label class="check"><input type="checkbox" name="timbre" value="1" <?= (int)$f['timbre'] > 0 ? 'checked' : '' ?> data-timbre> Timbre fiscal</label></dt><dd data-t="timbre">0,000</dd></div>
-              <div class="grand"><dt>Net à payer</dt><dd data-t="net">0,000 DT</dd></div>
+              <?php endif; ?>
+              <div class="grand"><dt><?= $isBl ? 'Total TTC' : 'Net à payer' ?></dt><dd data-t="net">0,000 DT</dd></div>
             </dl>
             <p class="words" data-words></p>
-            <?php if (!$isQuote && !$f['sale_id']): ?>
-              <label class="check stock-check"><input type="checkbox" name="stock" value="1" <?= $f['stock_applied'] ? 'checked' : '' ?>> Sortir les articles du stock du showroom<small>Décochez si la marchandise est déjà sortie (vente en caisse, livraison…).</small></label>
+            <?php if (!$isQuote && $stockLink): ?>
+              <p class="hint"><?= icon('check') ?> Stock déjà sorti par <?= $stockLink['type'] === 'bl' ? 'le bon de livraison' : 'la facture' ?> <?= e($stockLink['number']) ?>.</p>
+            <?php elseif (!$isQuote && !$f['sale_id']): ?>
+              <label class="check stock-check"><input type="checkbox" name="stock" value="1" <?= $f['stock_applied'] ? 'checked' : '' ?>> Sortir les articles du stock du showroom<small>Décochez si la marchandise est déjà sortie (vente en caisse, <?= $isBl ? 'facture…' : 'bon de livraison…' ?>).</small></label>
             <?php elseif (!$isQuote): ?>
-              <p class="hint"><?= icon('check') ?> Facture liée à une vente de caisse : le stock a déjà été sorti.</p>
+              <p class="hint"><?= icon('check') ?> <?= e($label) ?> lié<?= $fem ? 'e' : '' ?> à une vente de caisse : le stock a déjà été sorti.</p>
             <?php endif; ?>
-            <button class="btn primary block lg-btn"><?= icon('check') ?><?= $d ? 'Enregistrer les modifications' : ($isQuote ? 'Créer le devis' : 'Créer la facture') ?></button>
+            <button class="btn primary block lg-btn"><?= icon('check') ?><?= $d ? 'Enregistrer les modifications' : ['devis' => 'Créer le devis', 'facture' => 'Créer la facture', 'bl' => 'Créer le bon de livraison'][$type] ?></button>
             <p class="hint center"><?= $d ? 'N° ' . e($d['number']) : 'Le numéro est attribué à l’enregistrement.' ?></p>
           </section>
         </aside>
@@ -279,15 +317,17 @@ if ($a === 'view') {
     $rest = (int)$d['net'] - (int)$d['paid'];
     $editable = doc_editable($d);
     $canEdit = doc_can_manage($d);
+    $stockLink = doc_stock_link($d);
+    $blInvoice = $isBl ? doc_bl_invoice($d) : null;
     $printUrl = url('doc', ['id' => $d['id']]);
     $wa = '';
     if ($d['client_phone']) {
-        $msg = 'Bonjour ' . $d['client_name'] . ",\nVoici " . ($isQuote ? 'votre devis' : 'votre facture') . ' N° ' . $d['number'] . ' de ' . setting('company_name', 'FitnessTN')
+        $msg = 'Bonjour ' . $d['client_name'] . ",\nVoici " . ['devis' => 'votre devis', 'facture' => 'votre facture', 'bl' => 'votre bon de livraison'][$type] . ' N° ' . $d['number'] . ' de ' . setting('company_name', 'FitnessTN')
             . ' d’un montant de ' . money($d['net']) . ($isQuote && $d['due_date'] ? ', valable jusqu’au ' . fdate($d['due_date']) : '') . ".\nMerci pour votre confiance !";
         $wa = 'https://wa.me/216' . $d['client_phone'] . '?text=' . rawurlencode($msg);
     }
     // Bouton « Supprimer » visible en haut : direct si c'est possible, sinon il ouvre l'explication en bas de page
-    $delBlock = $isQuote ? ($canEdit ? null : 'Votre profil ne permet pas de supprimer ce devis.') : doc_invoice_delete_block($d);
+    $delBlock = doc_delete_block($d);
     $delEffects = doc_delete_effects($d);
     $delBtn = '';
     if ($delBlock === null) {
@@ -297,19 +337,20 @@ if ($a === 'view') {
         $delBtn = '<a class="btn sm ghost danger" href="#supprimer" onclick="var z=document.getElementById(\'supprimer\');if(z){z.open=true;}">' . icon('trash') . 'Supprimer…</a>';
     }
     $actions = $delBtn . '<a class="btn sm" target="_blank" href="' . e(url('doc', ['id' => $d['id'], 'print' => 1])) . '">' . icon('print') . 'Imprimer / PDF</a>'
+        . ($isBl ? '<a class="btn sm ghost" target="_blank" href="' . e(url('doc', ['id' => $d['id'], 'print' => 1, 'noprice' => 1])) . '" title="Bon de livraison sans prix, à remettre au transporteur">' . icon('print') . 'Sans prix</a>' : '')
         . ($editable ? '<a class="btn sm primary" href="' . e(url($route, ['a' => 'edit', 'id' => $d['id']])) . '">' . icon('edit') . 'Modifier</a>' : '');
     layout_start($label . ' ' . $d['number'], $route, ['actions' => $actions, 'wide' => true]);
     ?>
-    <p><a class="back" href="<?= e(url($route)) ?>"><?= icon('left') ?><?= $isQuote ? 'Tous les devis' : 'Toutes les factures' ?></a></p>
+    <p><a class="back" href="<?= e(url($route)) ?>"><?= icon('left') ?><?= ['devis' => 'Tous les devis', 'facture' => 'Toutes les factures', 'bl' => 'Tous les bons de livraison'][$type] ?></a></p>
     <div class="doc-view">
       <div class="doc-preview">
         <div class="paper-frame" data-paper-frame><iframe src="<?= e(url('doc', ['id' => $d['id'], 'embed' => 1])) ?>" title="Aperçu du document" loading="lazy"></iframe></div>
       </div>
       <aside class="doc-aside">
         <section class="card doc-status">
-          <div class="ds-top"><?= doc_badge($d) ?><span class="muted small"><?= $isQuote ? 'Devis' : 'Facture' ?> du <?= fdate($d['date']) ?></span></div>
-          <div class="ds-amount"><span>Net à payer</span><b><?= money($d['net']) ?></b></div>
-          <?php if (!$isQuote && $d['status'] !== 'annulee'): ?>
+          <div class="ds-top"><?= doc_badge($d) ?><span class="muted small"><?= e($label) ?> du <?= fdate($d['date']) ?></span></div>
+          <div class="ds-amount"><span><?= $isBl ? 'Total TTC' : 'Net à payer' ?></span><b><?= money($d['net']) ?></b></div>
+          <?php if ($isInvoice && $d['status'] !== 'annulee'): ?>
             <div class="meter" title="<?= e(money($d['paid'])) ?> encaissés"><span style="width:<?= $d['net'] ? min(100, round($d['paid'] / $d['net'] * 100)) : 0 ?>%"></span></div>
             <div class="ds-split"><span>Encaissé <b><?= money($d['paid']) ?></b></span><span>Reste <b class="<?= $rest > 0 ? 'warn-t' : 'pos' ?>"><?= money($rest) ?></b></span></div>
           <?php endif; ?>
@@ -318,11 +359,14 @@ if ($a === 'view') {
               <?= $d['client_phone'] ? '<br><a href="tel:' . e($d['client_phone']) . '">' . e($d['client_phone']) . '</a>' : '' ?></dd>
             <?php if ($d['due_date']): ?><dt><?= $isQuote ? 'Valable jusqu’au' : 'Échéance' ?></dt><dd class="<?= doc_expired($d) || doc_overdue($d) ? 'late' : '' ?>"><?= fdate($d['due_date']) ?></dd><?php endif; ?>
             <?php if ($d['location_id']): ?><dt>Showroom</dt><dd><?= e(location((int)$d['location_id'])['name'] ?? '') ?></dd><?php endif; ?>
+            <?php if ($d['payment_mode']): ?><dt>Paiement</dt><dd><?= e($d['payment_mode']) ?><?= $d['terms'] ? '<br><small class="muted">' . e($d['terms']) . '</small>' : '' ?></dd><?php endif; ?>
+            <?php if ($d['transporter_name']): ?><dt>Transporteur</dt><dd><?= e($d['transporter_name']) ?><?= $d['transporter_plate'] || $d['transporter_cin'] ? '<br><small class="muted">' . e(implode(' · ', array_filter([$d['transporter_plate'] ? 'Matricule ' . $d['transporter_plate'] : '', $d['transporter_cin'] ? 'CIN ' . $d['transporter_cin'] : '']))) . '</small>' : '' ?></dd><?php endif; ?>
             <dt>Établi par</dt><dd><?= e($d['author'] ?: '—') ?></dd>
-            <?php if ($source): ?><dt>Devis d’origine</dt><dd><a href="<?= e(url(doc_route($source['type']), ['a' => 'view', 'id' => $source['id']])) ?>"><?= e($source['number']) ?></a></dd><?php endif; ?>
+            <?php if ($source): ?><dt><?= e(DOC_TYPES[$source['type']]) ?> d’origine</dt><dd><a href="<?= e(url(doc_route($source['type']), ['a' => 'view', 'id' => $source['id']])) ?>"><?= e($source['number']) ?></a></dd><?php endif; ?>
             <?php foreach ($children as $ch): ?><dt><?= e(DOC_TYPES[$ch['type']]) ?></dt><dd><a href="<?= e(url(doc_route($ch['type']), ['a' => 'view', 'id' => $ch['id']])) ?>"><?= e($ch['number']) ?></a> <?= doc_badge($ch + ['due_date' => null]) ?></dd><?php endforeach; ?>
             <?php if ($sale): ?><dt>Vente caisse</dt><dd><a href="<?= e(url('sales', ['a' => 'view', 'id' => $sale['id']])) ?>"><?= e($sale['number']) ?></a></dd><?php endif; ?>
-            <?php if (!$isQuote): ?><dt>Stock</dt><dd><?= $d['stock_applied'] ? 'Sorti du showroom' : ($sale ? 'Sorti par la vente de caisse' : 'Non mouvementé') ?></dd><?php endif; ?>
+            <?php if (!$isQuote): ?><dt>Stock</dt><dd><?= $d['stock_applied'] ? 'Sorti du showroom' : ($sale ? 'Sorti par la vente de caisse'
+                : ($stockLink ? 'Sorti par ' . ($stockLink['type'] === 'bl' ? 'le bon de livraison ' : 'la facture ') . e($stockLink['number']) : 'Non mouvementé')) ?></dd><?php endif; ?>
           </dl>
           <div class="ds-actions">
             <?php if ($wa): ?><a class="btn sm wa" target="_blank" rel="noopener" href="<?= e($wa) ?>"><?= icon('chat') ?>WhatsApp</a><?php endif; ?>
@@ -351,7 +395,49 @@ if ($a === 'view') {
           </section>
         <?php endif; ?>
 
-        <?php if (!$isQuote): ?>
+        <?php if ($isBl && $canEdit && $d['status'] !== 'facture'): ?>
+          <section class="card">
+            <h2>Suivi de la livraison</h2>
+            <div class="status-steps two">
+              <?php foreach (['a_livrer' => 'truck', 'livre' => 'check'] as $st => $ic): ?>
+                <form method="post" action="<?= e(url($route, ['a' => 'status'])) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>"><input type="hidden" name="status" value="<?= $st ?>">
+                  <button class="step-btn st-<?= $st ?><?= $d['status'] === $st ? ' on' : '' ?>" <?= $d['status'] === $st ? 'disabled aria-current="true"' : '' ?>><?= icon($ic) ?><span><?= e(DOC_STATUS['bl'][$st]) ?></span></button></form>
+              <?php endforeach; ?>
+            </div>
+            <?php if ($d['status'] === 'livre' && $d['closed_at']): ?><p class="hint"><?= icon('check') ?> Livré le <?= fdate($d['closed_at'], true) ?>.</p><?php endif; ?>
+            <?php if ($blInvoice): ?>
+              <p class="hint">Ce bon de livraison accompagne la facture <a href="<?= e(url('invoices', ['a' => 'view', 'id' => $blInvoice['id']])) ?>"><?= e($blInvoice['number']) ?></a> : il n’est pas facturé une seconde fois.</p>
+            <?php else: ?>
+              <form method="post" action="<?= e(url($route, ['a' => 'convert'])) ?>" class="convert" onsubmit="return confirm('Créer une facture à partir de ce bon de livraison ?')">
+                <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>"><input type="hidden" name="to" value="facture">
+                <?php if (!$d['stock_applied'] && !$d['sale_id']): ?>
+                  <label class="check"><input type="checkbox" name="stock" value="1"> Sortir les articles du stock avec la facture</label>
+                <?php else: ?>
+                  <p class="hint">La marchandise est déjà sortie du stock par ce bon : la facture ne la sort pas une seconde fois.</p>
+                <?php endif; ?>
+                <button class="btn primary block"><?= icon('invoice') ?>Établir la facture</button>
+              </form>
+            <?php endif; ?>
+          </section>
+        <?php endif; ?>
+
+        <?php if ($isInvoice && $canEdit && $d['status'] !== 'annulee'): ?>
+          <section class="card">
+            <h2>Bon de livraison</h2>
+            <?php $bls = array_filter($children, fn($ch) => $ch['type'] === 'bl'); ?>
+            <?php if ($bls): ?><p class="muted small">Déjà établi : <?= implode(', ', array_map(fn($ch) => '<a href="' . e(url('delivery_notes', ['a' => 'view', 'id' => $ch['id']])) . '">' . e($ch['number']) . '</a>', $bls)) ?>.</p><?php endif; ?>
+            <form method="post" action="<?= e(url($route, ['a' => 'convert'])) ?>" class="convert" onsubmit="return confirm('Créer un bon de livraison à partir de cette facture ?')">
+              <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>"><input type="hidden" name="to" value="bl">
+              <?php if (!$d['stock_applied'] && !$d['sale_id'] && !$stockLink): ?>
+                <label class="check"><input type="checkbox" name="stock" value="1" checked> Sortir les articles du stock avec le bon de livraison</label>
+              <?php endif; ?>
+              <button class="btn block"><?= icon('clipboard') ?><?= $bls ? 'Établir un autre bon de livraison' : 'Établir le bon de livraison' ?></button>
+            </form>
+            <p class="hint">Mêmes articles, client et transporteur ; modifiable ensuite (livraison partielle, autre chauffeur…).</p>
+          </section>
+        <?php endif; ?>
+
+        <?php if ($isInvoice): ?>
           <section class="card">
             <h2>Paiements</h2>
             <?php if ($pays): ?>
@@ -385,10 +471,11 @@ if ($a === 'view') {
         <section class="card">
           <h2>Historique</h2>
           <ol class="timeline">
-            <li><b><?= $isQuote ? 'Devis créé' : 'Facture émise' ?></b><small><?= fdate($d['created_at'], true) ?><?= $d['author'] ? ' · ' . e($d['author']) : '' ?></small></li>
+            <li><b><?= ['devis' => 'Devis créé', 'facture' => 'Facture émise', 'bl' => 'Bon de livraison établi'][$type] ?></b><small><?= fdate($d['created_at'], true) ?><?= $d['author'] ? ' · ' . e($d['author']) : '' ?></small></li>
             <?php if ($d['sent_at']): ?><li><b>Envoyé au client</b><small><?= fdate($d['sent_at'], true) ?></small></li><?php endif; ?>
             <?php if ($isQuote && in_array($d['status'], ['accepte', 'refuse', 'facture'], true) && $d['closed_at']): ?><li class="<?= $d['status'] === 'refuse' ? 'err' : 'ok' ?>"><b><?= $d['status'] === 'refuse' ? 'Refusé' : 'Accepté' ?> par le client</b><small><?= fdate($d['closed_at'], true) ?></small></li><?php endif; ?>
-            <?php foreach ($children as $ch): ?><li class="ok"><b>Transformé en facture <?= e($ch['number']) ?></b></li><?php endforeach; ?>
+            <?php if ($isBl && $d['closed_at']): ?><li class="ok"><b>Livré au client</b><small><?= fdate($d['closed_at'], true) ?></small></li><?php endif; ?>
+            <?php foreach ($children as $ch): ?><li class="ok"><b><?= $ch['type'] === 'facture' ? 'Facturé : facture ' . e($ch['number']) : 'Bon de livraison ' . e($ch['number']) . ' établi' ?></b></li><?php endforeach; ?>
             <?php foreach ($pays as $p): ?><li class="ok"><b>Paiement de <?= money($p['amount']) ?></b><small><?= fdate($p['date']) ?> · <?= e(PAY_METHODS[$p['method']] ?? '') ?><?= $p['user_name'] ? ' · ' . e($p['user_name']) : '' ?></small></li><?php endforeach; ?>
             <?php if ($d['status'] === 'annulee'): ?><li class="err"><b>Annulée</b><small><?= fdate($d['cancelled_at'], true) ?> — <?= e($d['cancel_reason']) ?></small></li><?php endif; ?>
           </ol>
@@ -403,19 +490,19 @@ if ($a === 'view') {
 
         <?php if ($canEdit): ?>
           <details class="card danger-zone" id="supprimer">
-            <summary>Supprimer <?= $isQuote ? 'ce devis' : 'cette facture' ?></summary>
+            <summary>Supprimer <?= e($this_) ?></summary>
             <?php if ($delBlock === null): ?>
               <form method="post" action="<?= e(url($route, ['a' => 'delete'])) ?>" onsubmit="return confirm(<?= e(json_encode($delEffects . "\n\nConfirmer la suppression ?")) ?>)">
                 <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
-                <p class="muted"><?= e($delEffects) ?><?= !$isQuote && $d['status'] !== 'annulee' ? ' Pour une facture déjà remise au client, préférez « Annuler » : le numéro reste dans la suite.' : '' ?></p>
-                <button class="btn danger"><?= icon('trash') ?><?= $isQuote ? 'Supprimer le devis' : 'Supprimer la facture' ?></button>
+                <p class="muted"><?= e($delEffects) ?><?= $isInvoice && $d['status'] !== 'annulee' ? ' Pour une facture déjà remise au client, préférez « Annuler » : le numéro reste dans la suite.' : '' ?></p>
+                <button class="btn danger"><?= icon('trash') ?><?= ['devis' => 'Supprimer le devis', 'facture' => 'Supprimer la facture', 'bl' => 'Supprimer le bon de livraison'][$type] ?></button>
               </form>
             <?php else: ?>
               <p class="muted"><?= e($delBlock) ?></p>
             <?php endif; ?>
           </details>
         <?php endif; ?>
-        <?php if (!$isQuote && $canEdit && $d['status'] !== 'annulee'): ?>
+        <?php if ($isInvoice && $canEdit && $d['status'] !== 'annulee'): ?>
           <details class="card danger-zone">
             <summary>Annuler cette facture</summary>
             <form method="post" action="<?= e(url($route, ['a' => 'cancel'])) ?>" onsubmit="return confirm('Annuler définitivement la facture <?= e($d['number']) ?> ?')">
@@ -447,10 +534,11 @@ $base = ['d.type = ?', 'd.date BETWEEN ? AND ?'];
 $bp = [$type, $f['from'], $f['to']];
 if ($f['loc']) { $base[] = 'd.location_id = ?'; $bp[] = $f['loc']; }
 if ($f['q'] !== '') {
-    $base[] = '(d.number LIKE ? OR d.client_name LIKE ? OR d.client_phone LIKE ? OR d.client_mf LIKE ?)';
-    array_push($bp, '%' . $f['q'] . '%', '%' . $f['q'] . '%', '%' . (normalize_phone($f['q']) ?: $f['q']) . '%', '%' . $f['q'] . '%');
+    $base[] = '(d.number LIKE ? OR d.client_name LIKE ? OR d.client_phone LIKE ? OR d.client_mf LIKE ? OR d.transporter_name LIKE ? OR d.transporter_plate LIKE ?)';
+    array_push($bp, '%' . $f['q'] . '%', '%' . $f['q'] . '%', '%' . (normalize_phone($f['q']) ?: $f['q']) . '%', '%' . $f['q'] . '%', '%' . $f['q'] . '%', '%' . $f['q'] . '%');
 }
-$late = $isQuote ? "d.status IN ('brouillon','envoye') AND d.due_date < '" . today() . "'" : "d.status IN ('emise','partielle') AND d.due_date < '" . today() . "'";
+$late = $isQuote ? "d.status IN ('brouillon','envoye') AND d.due_date < '" . today() . "'"
+    : ($isInvoice ? "d.status IN ('emise','partielle') AND d.due_date < '" . today() . "'" : '0');
 $counts = ['' => 0, 'late' => 0];
 foreach (all('SELECT d.status, COUNT(*) n, SUM(CASE WHEN ' . $late . ' THEN 1 ELSE 0 END) l FROM documents d WHERE ' . implode(' AND ', $base) . ' GROUP BY d.status', $bp) as $r) {
     $counts[$r['status']] = (int)$r['n'];
@@ -475,16 +563,24 @@ if ($isQuote) {
         SUM(CASE WHEN status IN ('accepte','facture') THEN 1 ELSE 0 END) won, SUM(CASE WHEN status IN ('accepte','facture','refuse') THEN 1 ELSE 0 END) closed,
         COALESCE(SUM(CASE WHEN status = 'accepte' THEN net END),0) tobill FROM documents d WHERE $bw", $bp);
     $rate = (int)$k['closed'] ? (int)$k['won'] / (int)$k['closed'] * 100 : null;
+} elseif ($isBl) {
+    $k = one("SELECT COUNT(*) n, COALESCE(SUM(net),0) t,
+        SUM(CASE WHEN status = 'a_livrer' THEN 1 ELSE 0 END) todo, COALESCE(SUM(CASE WHEN status = 'a_livrer' THEN net END),0) todo_t,
+        SUM(CASE WHEN status = 'livre' THEN 1 ELSE 0 END) done, SUM(CASE WHEN status = 'facture' THEN 1 ELSE 0 END) billed,
+        SUM(CASE WHEN status <> 'facture' AND NOT EXISTS (SELECT 1 FROM documents f WHERE f.type = 'facture' AND f.status <> 'annulee' AND f.id = d.source_id) THEN 1 ELSE 0 END) tobill_n,
+        COALESCE(SUM(CASE WHEN status <> 'facture' AND NOT EXISTS (SELECT 1 FROM documents f WHERE f.type = 'facture' AND f.status <> 'annulee' AND f.id = d.source_id) THEN net END),0) tobill
+        FROM documents d WHERE $bw", $bp);
 } else {
     $k = one("SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN status <> 'annulee' THEN net END),0) t, COALESCE(SUM(CASE WHEN status <> 'annulee' THEN paid END),0) paid,
         COALESCE(SUM(CASE WHEN $late THEN net - paid END),0) overdue, SUM(CASE WHEN status IN ('emise','partielle') THEN 1 ELSE 0 END) open
         FROM documents d WHERE $bw", $bp);
 }
 
-$exportParams = array_filter(['ds' => $isQuote ? 'devis' : 'factures', 'from' => $f['from'], 'to' => $f['to'], 'loc' => $f['loc'] ?: null]);
-$actions = (can('invoices.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Exporter</a>' : '')
-    . (can('invoices.edit') ? '<a class="btn sm primary" href="' . e(url($route, ['a' => 'edit'])) . '">' . icon('plus') . ($isQuote ? 'Nouveau devis' : 'Nouvelle facture') . '</a>' : '');
-layout_start($isQuote ? 'Devis' : 'Factures', $route, ['actions' => $actions]);
+$exportParams = array_filter(['ds' => ['devis' => 'devis', 'facture' => 'factures', 'bl' => 'bons_livraison'][$type], 'from' => $f['from'], 'to' => $f['to'], 'loc' => $f['loc'] ?: null]);
+$actions = '<a class="btn sm ghost" href="' . e(url('doc_lists')) . '" title="Transporteurs et modalités de paiement">' . icon('truck') . 'Transporteurs & paiements</a>'
+    . (can('invoices.export') ? '<a class="btn sm ghost" href="' . e(url('io', ['a' => 'export'] + $exportParams)) . '">' . icon('download') . 'Exporter</a>' : '')
+    . (can('invoices.edit') ? '<a class="btn sm primary" href="' . e(url($route, ['a' => 'edit'])) . '">' . icon('plus') . e($newLabel) . '</a>' : '');
+layout_start($plural, $route, ['actions' => $actions]);
 $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? null : ($f['loc'] ?: null), 'q' => $f['q']]);
 ?>
 <div class="grid4 kpis">
@@ -493,6 +589,11 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
     <div class="kpi with-ic"><span class="kpi-ic info"><?= icon('send') ?></span><span>En attente de réponse</span><b><?= money0($k['pending']) ?></b><small><?= (int)$k['pn'] ?> devis à relancer</small></div>
     <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('check') ?></span><span>Taux de transformation</span><b><?= $rate === null ? '—' : pct($rate) ?></b><small><?= (int)$k['won'] ?> accepté(s) sur <?= (int)$k['closed'] ?> réponse(s)</small></div>
     <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('invoice') ?></span><span>Acceptés à facturer</span><b class="<?= (int)$k['tobill'] ? 'warn-t' : '' ?>"><?= money0($k['tobill']) ?></b><small><a href="<?= e(url($route, $qs + ['status' => 'accepte'])) ?>">Voir les devis acceptés</a></small></div>
+  <?php elseif ($isBl): ?>
+    <div class="kpi with-ic"><span class="kpi-ic"><?= icon('clipboard') ?></span><span>Bons de livraison</span><b><?= (int)$k['n'] ?></b><small><?= money0($k['t']) ?> de marchandise</small></div>
+    <div class="kpi with-ic"><span class="kpi-ic warn"><?= icon('truck') ?></span><span>À livrer</span><b class="<?= (int)$k['todo'] ? 'warn-t' : '' ?>"><?= (int)$k['todo'] ?></b><small><?= money0($k['todo_t']) ?> en attente de livraison</small></div>
+    <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('check') ?></span><span>Livrés</span><b><?= (int)$k['done'] + (int)$k['billed'] ?></b><small><?= (int)$k['billed'] ?> déjà facturé(s)</small></div>
+    <div class="kpi with-ic"><span class="kpi-ic info"><?= icon('invoice') ?></span><span>À facturer</span><b class="<?= (int)$k['tobill'] ? 'warn-t' : '' ?>"><?= money0($k['tobill']) ?></b><small><?= (int)$k['tobill_n'] ?> bon(s) sans facture</small></div>
   <?php else: ?>
     <div class="kpi with-ic"><span class="kpi-ic"><?= icon('invoice') ?></span><span>Chiffre facturé</span><b><?= money0($k['t']) ?></b><small><?= (int)$k['n'] ?> facture(s) sur la période</small></div>
     <div class="kpi with-ic"><span class="kpi-ic ok"><?= icon('cash') ?></span><span>Encaissé</span><b><?= money0($k['paid']) ?></b><small><?= (int)$k['t'] ? pct((int)$k['paid'] / (int)$k['t'] * 100) . ' du facturé' : '—' ?></small></div>
@@ -514,14 +615,16 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
   <label>Du<input type="date" name="from" value="<?= e($f['from']) ?>"></label>
   <label>Au<input type="date" name="to" value="<?= e($f['to']) ?>"></label>
   <?php if (!$scope): ?><label>Showroom<select name="loc"><?= opt(location_options(false), $f['loc'], true, 'Tous') ?></select></label><?php endif; ?>
-  <label class="grow">Recherche<input type="search" name="q" value="<?= e($f['q']) ?>" placeholder="N°, client, téléphone, matricule fiscal"></label>
+  <label class="grow">Recherche<input type="search" name="q" value="<?= e($f['q']) ?>" placeholder="N°, client, téléphone, matricule fiscal, transporteur"></label>
   <button class="btn"><?= icon('search') ?>Filtrer</button>
 </form>
 
 <?php $listDelete = can('invoices.edit'); ?>
 <?php if ($listDelete && $rows): ?>
 <form method="post" action="<?= e(url($route, ['a' => 'bulk_delete'])) ?>" id="bulk-del" class="bulk-bar" data-bulk hidden
-  onsubmit="return confirm(<?= e(json_encode(($isQuote ? 'Supprimer définitivement les devis sélectionnés ?' : 'Supprimer définitivement les factures sélectionnées ? Leurs paiements sont supprimés aussi et le stock sorti est remis.') . "\n\nPour une facture déjà remise au client, préférez « Annuler » : le numéro reste dans la suite.")) ?>)">
+  onsubmit="return confirm(<?= e(json_encode(['devis' => 'Supprimer définitivement les devis sélectionnés ?',
+      'facture' => 'Supprimer définitivement les factures sélectionnées ? Leurs paiements sont supprimés aussi et le stock sorti est remis.' . "\n\nPour une facture déjà remise au client, préférez « Annuler » : le numéro reste dans la suite.",
+      'bl' => 'Supprimer définitivement les bons de livraison sélectionnés ? Le stock sorti est remis.'][$type])) ?>)">
   <?= csrf_field() ?><input type="hidden" name="back" value="<?= e($_SERVER['REQUEST_URI'] ?? '') ?>">
   <span><b data-bulk-count>0</b> sélectionné(s)</span>
   <button type="button" class="btn sm ghost" data-bulk-clear>Tout désélectionner</button>
@@ -530,18 +633,22 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
 <?php endif; ?>
 <div class="card flush">
   <table class="tbl hover">
-    <thead><tr><?php if ($listDelete && $rows): ?><th class="sel"><input type="checkbox" data-bulk-all aria-label="Tout sélectionner" title="Tout sélectionner"></th><?php endif; ?><th>N°</th><th>Date</th><th>Client</th><?php if (!$scope): ?><th>Showroom</th><?php endif; ?><th><?= $isQuote ? 'Validité' : 'Échéance' ?></th><th class="num">Net à payer</th><?php if (!$isQuote): ?><th class="num">Reste</th><?php endif; ?><th>Statut</th><?php if ($listDelete): ?><th class="num"></th><?php endif; ?></tr></thead>
+    <thead><tr><?php if ($listDelete && $rows): ?><th class="sel"><input type="checkbox" data-bulk-all aria-label="Tout sélectionner" title="Tout sélectionner"></th><?php endif; ?><th>N°</th><th>Date</th><th>Client</th><?php if (!$scope): ?><th>Showroom</th><?php endif; ?><th><?= ['devis' => 'Validité', 'facture' => 'Échéance', 'bl' => 'Transporteur'][$type] ?></th><th class="num"><?= $isBl ? 'Total TTC' : 'Net à payer' ?></th><?php if ($isInvoice): ?><th class="num">Reste</th><?php endif; ?><th>Statut</th><?php if ($listDelete): ?><th class="num"></th><?php endif; ?></tr></thead>
     <tbody>
-    <?php foreach ($rows as $r): $rr = (int)$r['net'] - (int)$r['paid']; $rowDel = $listDelete && ($isQuote ? doc_can_manage($r) : doc_invoice_delete_block($r) === null); ?>
+    <?php foreach ($rows as $r): $rr = (int)$r['net'] - (int)$r['paid']; $rowDel = $listDelete && doc_delete_block($r) === null; ?>
       <tr data-href="<?= e(url($route, ['a' => 'view', 'id' => $r['id']])) ?>">
         <?php if ($listDelete): ?><td class="sel"><?php if ($rowDel): ?><input type="checkbox" name="ids[]" value="<?= (int)$r['id'] ?>" form="bulk-del" data-bulk-item aria-label="Sélectionner <?= e($r['number']) ?>"><?php endif; ?></td><?php endif; ?>
         <td><a href="<?= e(url($route, ['a' => 'view', 'id' => $r['id']])) ?>"><b><?= e($r['number']) ?></b></a></td>
         <td><?= fdate($r['date']) ?></td>
         <td><b class="fw5"><?= e($r['client_name']) ?></b><?= $r['client_phone'] || $r['client_mf'] ? '<br><small class="muted">' . e(trim($r['client_phone'] . ($r['client_mf'] ? ' · MF ' . $r['client_mf'] : ''), ' ·')) . '</small>' : '' ?></td>
         <?php if (!$scope): ?><td><?= e($r['location_id'] ? (location((int)$r['location_id'])['name'] ?? '') : 'Siège') ?></td><?php endif; ?>
+        <?php if ($isBl): ?>
+        <td><?= $r['transporter_name'] ? e($r['transporter_name']) . ($r['transporter_plate'] ? '<br><small class="muted">' . e($r['transporter_plate']) . '</small>' : '') : '<span class="muted">—</span>' ?></td>
+        <?php else: ?>
         <td class="<?= doc_expired($r) || doc_overdue($r) ? 'late' : '' ?>"><?= $r['due_date'] ? fdate($r['due_date']) : '<span class="muted">—</span>' ?></td>
+        <?php endif; ?>
         <td class="num"><b><?= money($r['net']) ?></b></td>
-        <?php if (!$isQuote): ?><td class="num"><?= $r['status'] !== 'annulee' && $rr > 0 ? money($rr) : '' ?></td><?php endif; ?>
+        <?php if ($isInvoice): ?><td class="num"><?= $r['status'] !== 'annulee' && $rr > 0 ? money($rr) : '' ?></td><?php endif; ?>
         <td><?= doc_badge($r) ?></td>
         <?php if ($listDelete): ?><td class="num"><?php if ($rowDel): ?>
           <form method="post" action="<?= e(url($route, ['a' => 'delete'])) ?>" onsubmit="return confirm(<?= e(json_encode(doc_delete_effects($r) . "\n\nConfirmer la suppression ?")) ?>)"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><button class="icon-btn xs" title="Supprimer <?= e($r['number']) ?>" aria-label="Supprimer <?= e($r['number']) ?>"><?= icon('trash') ?></button></form>
@@ -550,9 +657,11 @@ $qs = array_filter(['from' => $f['from'], 'to' => $f['to'], 'loc' => $scope ? nu
     <?php endforeach; ?>
     <?php if (!$rows): ?>
       <tr><td colspan="10" class="empty-row">
-        <div class="empty-state"><?= icon($isQuote ? 'quote' : 'invoice', 'ic xl') ?><b><?= $counts[''] ? 'Aucun résultat pour ces filtres.' : ($isQuote ? 'Aucun devis pour l’instant.' : 'Aucune facture pour l’instant.') ?></b>
-          <?php if (!$counts[''] && can('invoices.edit')): ?><span><?= $isQuote ? 'Préparez une proposition chiffrée pour un client, puis transformez-la en facture en un clic.' : 'Créez une facture directement, depuis un devis accepté ou depuis une vente de caisse.' ?></span>
-            <a class="btn primary sm" href="<?= e(url($route, ['a' => 'edit'])) ?>"><?= icon('plus') ?><?= $isQuote ? 'Créer un devis' : 'Créer une facture' ?></a><?php endif; ?></div>
+        <div class="empty-state"><?= icon(doc_icon($type), 'ic xl') ?><b><?= $counts[''] ? 'Aucun résultat pour ces filtres.' : ['devis' => 'Aucun devis pour l’instant.', 'facture' => 'Aucune facture pour l’instant.', 'bl' => 'Aucun bon de livraison pour l’instant.'][$type] ?></b>
+          <?php if (!$counts[''] && can('invoices.edit')): ?><span><?= ['devis' => 'Préparez une proposition chiffrée pour un client, puis transformez-la en facture en un clic.',
+              'facture' => 'Créez une facture directement, depuis un devis accepté ou depuis une vente de caisse.',
+              'bl' => 'Établissez un bon de livraison directement ou depuis une facture (bouton « Établir le bon de livraison »), avec le transporteur, son matricule et sa CIN.'][$type] ?></span>
+            <a class="btn primary sm" href="<?= e(url($route, ['a' => 'edit'])) ?>"><?= icon('plus') ?><?= ['devis' => 'Créer un devis', 'facture' => 'Créer une facture', 'bl' => 'Créer un bon de livraison'][$type] ?></a><?php endif; ?></div>
       </td></tr>
     <?php endif; ?>
     </tbody>

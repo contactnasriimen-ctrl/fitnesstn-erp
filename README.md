@@ -1,6 +1,6 @@
 # ERP FitnessTN
 
-Caisse, ventes, devis & factures, stock multi-sites, livraisons & transporteurs, tâches (Kanban), marketing, finances et import/export CSV — pour les showrooms de Tunis et de Nabeul.
+Caisse, ventes, devis, factures & bons de livraison, stock multi-sites, livraisons & transporteurs, tâches (Kanban), marketing, finances et import/export CSV — pour les showrooms de Tunis et de Nabeul.
 
 **▶ Démo en ligne : https://contactnasriimen-ctrl.github.io/fitnesstn-erp/** — comptes de démonstration : `admin` / `ftn-3a44ca`, `tunis` / `ftn-cdc467`, `nabeul` / `ftn-14509e`, `marketing` / `ftn-6473e3`, `livreur` / `ftn-76b68c`.
 La démo fait tourner ce code PHP dans le navigateur (PHP 8.3 WebAssembly) : les essais restent dans le navigateur de chacun. Pour l’utilisation réelle à plusieurs, installez l’ERP sur un hébergement PHP (voir plus bas).
@@ -57,6 +57,8 @@ Chacun change son mot de passe dans **Mon compte**. L’administrateur peut cré
 - **Finances** : synthèse (CA, encaissements, dépenses, marge, résultat estimé), clôtures de caisse, dépenses, reste à encaisser.
 - **Import / Export** : 16 jeux de données, ouverts directement par Excel ; les imports acceptent CSV et Excel (.xlsx). Chaque import montre un aperçu avant d’enregistrer. L’export WooCommerce du site est reconnu tel quel.
 - **Vos fichiers Excel** (administrateur, Import / Export) : les classeurs « VENTE GRAND TUNIS » (une feuille par mois), « PAIEMENT » (transporteurs) et « RÉPARATION ET SERVICE APRÈS VENTE » s’importent tels quels. Ventes numérotées XL-26-…, sans toucher au stock ni aux caisses ; retours = ventes annulées ; paiements des transporteurs rapprochés des ventes. Un fichier complété peut être renvoyé : rien n’est dupliqué et les changements (payé, réparé…) sont mis à jour.
+- **Bons de livraison** (v1.6) : même saisie que les factures, numérotation BL-000001/26, statuts « À livrer », « Livré », « Facturé ». Un bon s’établit directement ou depuis une facture, et se transforme en facture en un clic. Le stock ne sort qu’une fois, par le bon ou par la facture. Impression A4 avec ou sans les prix (copie du transporteur), avec les cases de signature du transporteur et du client.
+- **Transporteur et modalité de paiement** (v1.6) : chaque devis, facture ou bon de livraison porte une modalité de paiement (comptant à la livraison, chèque, virement, traite…) et un transporteur (nom, matricule du véhicule, CIN du chauffeur), imprimés sur le document. Les deux listes se gèrent dans « Transporteurs & paiements » (bouton en haut des factures et des bons) : ajout, modification, suppression, ordre et modalité par défaut. Un document garde ce qui y est imprimé, même si la liste change ensuite.
 - **Devis & factures** : le matricule fiscal de l’entreprise est imprimé dans un cadre « المعرف الجبائي / Matricule Fiscal » en haut de chaque document.
 
 ## Avant l’utilisation réelle

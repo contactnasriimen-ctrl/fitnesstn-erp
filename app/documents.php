@@ -1,20 +1,155 @@
 <?php
 declare(strict_types=1);
 
-/* ---------- Devis & factures ---------- */
+/* ---------- Devis, factures & bons de livraison ---------- */
 
-const DOC_TYPES = ['devis' => 'Devis', 'facture' => 'Facture'];
+const DOC_TYPES = ['devis' => 'Devis', 'facture' => 'Facture', 'bl' => 'Bon de livraison'];
 
 const DOC_STATUS = [
     'devis' => ['brouillon' => 'Brouillon', 'envoye' => 'Envoyé', 'accepte' => 'Accepté', 'refuse' => 'Refusé', 'facture' => 'Facturé'],
     'facture' => ['emise' => 'À encaisser', 'partielle' => 'Paiement partiel', 'payee' => 'Payée', 'annulee' => 'Annulée'],
+    'bl' => ['a_livrer' => 'À livrer', 'livre' => 'Livré', 'facture' => 'Facturé'],
 ];
 
 const VAT_RATES = ['19' => '19 %', '13' => '13 %', '7' => '7 %', '0' => '0 %'];
 
 function doc_route(string $type): string
 {
-    return $type === 'devis' ? 'quotes' : 'invoices';
+    return ['devis' => 'quotes', 'facture' => 'invoices', 'bl' => 'delivery_notes'][$type] ?? 'invoices';
+}
+
+/** Accord des messages : « facture créée », mais « devis créé », « bon de livraison créé ». */
+function doc_fem(string $type): bool
+{
+    return $type === 'facture';
+}
+
+function doc_icon(string $type): string
+{
+    return ['devis' => 'quote', 'facture' => 'invoice', 'bl' => 'clipboard'][$type] ?? 'invoice';
+}
+
+function doc_prefix(string $type): string
+{
+    return (string)setting(['devis' => 'quote_prefix', 'facture' => 'invoice_prefix', 'bl' => 'bl_prefix'][$type] ?? 'invoice_prefix',
+        ['devis' => 'DV-', 'facture' => '', 'bl' => 'BL-'][$type] ?? '');
+}
+
+/* ---------- Modalités de paiement et transporteurs (listes modifiables) ---------- */
+
+function payment_modes(): array
+{
+    return array_column(all('SELECT label FROM payment_modes ORDER BY position, id'), 'label');
+}
+
+/** Options du menu « Modalité de paiement » ; la valeur actuelle reste proposée même si elle a été retirée de la liste. */
+function payment_mode_options(string $current = ''): array
+{
+    $modes = payment_modes();
+    if ($current !== '' && !in_array(mb_strtolower($current), array_map('mb_strtolower', $modes), true)) $modes[] = $current;
+    return array_combine($modes, $modes) ?: [];
+}
+
+function payment_mode_save(int $id, string $label): int
+{
+    $label = trim(preg_replace('/\s+/u', ' ', $label));
+    if ($label === '') throw new RuntimeException('Le libellé de la modalité est obligatoire.');
+    $label = mb_substr($label, 0, 60);
+    if (val('SELECT id FROM payment_modes WHERE label = ? COLLATE NOCASE AND id <> ?', [$label, $id])) throw new RuntimeException("La modalité « $label » existe déjà.");
+    if ($id) {
+        $old = one('SELECT * FROM payment_modes WHERE id = ?', [$id]);
+        if (!$old) throw new RuntimeException('Modalité introuvable.');
+        update('payment_modes', ['label' => $label], 'id = ?', [$id]);
+        if (setting('invoice_payment_mode', '') === $old['label']) set_setting('invoice_payment_mode', $label);
+        audit('modalité de paiement modifiée', 'payment_mode', $id, $old['label'] . ' → ' . $label);
+        return $id;
+    }
+    $id = insert('payment_modes', ['label' => $label, 'position' => (int)val('SELECT COALESCE(MAX(position), 0) + 1 FROM payment_modes'), 'created_at' => now()]);
+    audit('modalité de paiement ajoutée', 'payment_mode', $id, $label);
+    return $id;
+}
+
+function payment_mode_delete(int $id): string
+{
+    $m = one('SELECT * FROM payment_modes WHERE id = ?', [$id]);
+    if (!$m) throw new RuntimeException('Modalité introuvable.');
+    q('DELETE FROM payment_modes WHERE id = ?', [$id]);
+    if (setting('invoice_payment_mode', '') === $m['label']) set_setting('invoice_payment_mode', '');
+    audit('modalité de paiement supprimée', 'payment_mode', $id, $m['label']);
+    return $m['label'];
+}
+
+/** Déplace une modalité d'un cran vers le haut (-1) ou le bas (+1) dans la liste. */
+function payment_mode_move(int $id, int $dir): void
+{
+    $ids = array_map('intval', array_column(all('SELECT id FROM payment_modes ORDER BY position, id'), 'id'));
+    $i = array_search($id, $ids, true);
+    $j = $i === false ? false : $i + ($dir < 0 ? -1 : 1);
+    if ($i === false || $j < 0 || $j >= count($ids)) return;
+    [$ids[$i], $ids[$j]] = [$ids[$j], $ids[$i]];
+    tx(function () use ($ids) {
+        foreach ($ids as $pos => $mid) q('UPDATE payment_modes SET position = ? WHERE id = ?', [$pos + 1, $mid]);
+    });
+}
+
+function transporters(): array
+{
+    return all('SELECT * FROM transporters ORDER BY name COLLATE NOCASE, id');
+}
+
+/** Nom, matricule du véhicule et CIN du chauffeur, nettoyés et vérifiés. */
+function transporter_clean(array $in): array
+{
+    $name = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($in['name'] ?? ''))), 0, 120);
+    $plate = mb_substr(mb_strtoupper(trim(preg_replace('/\s+/u', ' ', (string)($in['plate'] ?? '')))), 0, 20);
+    $cin = mb_substr(trim(preg_replace('/\s+/u', '', (string)($in['cin'] ?? ''))), 0, 20);
+    // Une CIN tunisienne compte 8 chiffres ; un passeport (lettres et chiffres) est accepté tel quel.
+    if ($cin !== '' && ctype_digit($cin) && strlen($cin) !== 8) throw new RuntimeException("CIN « $cin » : une carte d’identité tunisienne compte 8 chiffres.");
+    if ($name === '' && ($plate !== '' || $cin !== '')) throw new RuntimeException('Indiquez le nom du transporteur.');
+    return ['name' => $name, 'plate' => $plate, 'cin' => $cin];
+}
+
+function transporter_save(int $id, array $in): int
+{
+    $t = transporter_clean($in);
+    if ($t['name'] === '') throw new RuntimeException('Le nom du transporteur est obligatoire.');
+    if ($id) {
+        if (!one('SELECT id FROM transporters WHERE id = ?', [$id])) throw new RuntimeException('Transporteur introuvable.');
+        update('transporters', $t + ['updated_at' => now()], 'id = ?', [$id]);
+        audit('transporteur modifié', 'transporter', $id, implode(' · ', array_filter($t)));
+        return $id;
+    }
+    $id = insert('transporters', $t + ['created_at' => now(), 'updated_at' => now()]);
+    audit('transporteur ajouté', 'transporter', $id, implode(' · ', array_filter($t)));
+    return $id;
+}
+
+function transporter_delete(int $id): string
+{
+    $t = one('SELECT * FROM transporters WHERE id = ?', [$id]);
+    if (!$t) throw new RuntimeException('Transporteur introuvable.');
+    // Les documents gardent leur copie (nom, matricule, CIN) : seul le lien vers la fiche disparaît.
+    q('DELETE FROM transporters WHERE id = ?', [$id]);
+    audit('transporteur supprimé', 'transporter', $id, $t['name']);
+    return $t['name'];
+}
+
+/**
+ * Transporteur saisi sur un document : fiche choisie dans la liste, ou saisie libre enregistrée dans la liste
+ * si « save » est coché (sans doublon : même nom et même matricule = même fiche). Retourne [id|null, copie figée].
+ */
+function doc_transporter(array $in): array
+{
+    $t = transporter_clean($in);
+    if ($t['name'] === '') return [null, $t];
+    $id = !empty($in['id']) ? (int)$in['id'] : null;
+    if ($id && !one('SELECT id FROM transporters WHERE id = ?', [$id])) $id = null;
+    if (!$id) {
+        $id = (int)val('SELECT id FROM transporters WHERE name = ? COLLATE NOCASE AND plate = ? COLLATE NOCASE ORDER BY id LIMIT 1', [$t['name'], $t['plate']]) ?: null;
+        if ($id && $t['cin'] !== '' && (string)val('SELECT cin FROM transporters WHERE id = ?', [$id]) === '') update('transporters', ['cin' => $t['cin'], 'updated_at' => now()], 'id = ?', [$id]);
+        if (!$id && !empty($in['save'])) $id = transporter_save(0, $t);
+    }
+    return [$id, $t];
 }
 
 /** Devis dont la validité est dépassée sans réponse. */
@@ -35,13 +170,13 @@ function doc_badge(array $d): string
     if (doc_expired($d)) return badge('Expiré', 'warn');
     if (doc_overdue($d)) return badge('En retard', 'err');
     $tone = ['brouillon' => '', 'envoye' => 'info', 'accepte' => 'ok', 'refuse' => 'err', 'facture' => 'ok',
-        'emise' => 'warn', 'partielle' => 'warn', 'payee' => 'ok', 'annulee' => 'err'][$d['status']] ?? '';
+        'emise' => 'warn', 'partielle' => 'warn', 'payee' => 'ok', 'annulee' => 'err', 'a_livrer' => 'warn', 'livre' => 'info'][$d['status']] ?? '';
     return badge(DOC_STATUS[$d['type']][$d['status']] ?? $d['status'], $tone);
 }
 
 function doc_number(string $type): string
 {
-    $prefix = (string)setting($type === 'devis' ? 'quote_prefix' : 'invoice_prefix', $type === 'devis' ? 'DV-' : '');
+    $prefix = doc_prefix($type);
     $n = next_seq('doc:' . $type . ':' . date('Y'));
     return $prefix . str_pad((string)$n, 6, '0', STR_PAD_LEFT) . '/' . date('y');
 }
@@ -56,7 +191,7 @@ function doc_set_next_number(string $type, int $next): void
 {
     $key = 'doc:' . $type . ':' . date('Y');
     $max = 0;
-    $prefix = (string)setting($type === 'devis' ? 'quote_prefix' : 'invoice_prefix', '');
+    $prefix = doc_prefix($type);
     foreach (all("SELECT number FROM documents WHERE type = ? AND number LIKE ?", [$type, '%/' . date('y')]) as $r) {
         $num = substr($r['number'], strlen($prefix));
         if (preg_match('/^(\d+)\//', $num, $m)) $max = max($max, (int)$m[1]);
@@ -161,8 +296,9 @@ function doc_paid_status(int $net, int $paid): string
 }
 
 /**
- * Crée ou modifie un devis / une facture. $in : type, id, location_id, client{}, date, due_date, items[], discount,
- * timbre, terms, transport, warranty, notes, internal_note, stock. Retourne l'id.
+ * Crée ou modifie un devis / une facture / un bon de livraison. $in : type, id, location_id, client{}, date, due_date,
+ * items[], discount, timbre, payment_mode, terms, transport, transporter{id, name, plate, cin, save}, warranty, notes,
+ * internal_note, stock. Retourne l'id.
  */
 function doc_save(array $in): int
 {
@@ -173,24 +309,30 @@ function doc_save(array $in): int
     $type = $old['type'] ?? (string)($in['type'] ?? '');
     if (!isset(DOC_TYPES[$type])) throw new RuntimeException('Type de document inconnu.');
     if ($old && !doc_editable($old)) throw new RuntimeException('Ce document ne peut plus être modifié.');
+    $isBl = $type === 'bl';
 
     // Un responsable crée au nom de son showroom ; s'il modifie le document d'un autre showroom, celui-ci ne change pas.
     if ($old && scope_loc()) $locId = $old['location_id'] !== null ? (int)$old['location_id'] : null;
     else $locId = scope_loc() ?? ((int)($in['location_id'] ?? 0) ?: null);
     if ($locId && !location($locId)) throw new RuntimeException('Showroom inconnu.');
     $date = parse_date($in['date'] ?? null) ?? today();
-    $due = parse_date($in['due_date'] ?? null);
+    // Un bon de livraison n'a ni échéance ni timbre fiscal : sa date est celle de la livraison.
+    $due = $isBl ? null : parse_date($in['due_date'] ?? null);
     if ($due && $due < $date) throw new RuntimeException($type === 'devis' ? 'La date de validité précède la date du devis.' : 'L’échéance précède la date de la facture.');
 
     $c = (array)($in['client'] ?? []);
     $cname = trim((string)($c['name'] ?? ''));
     if ($cname === '') throw new RuntimeException('Le nom du client est obligatoire.');
-    $calc = doc_compute((array)($in['items'] ?? []), $in['discount'] ?? 0, !empty($in['timbre']));
+    $calc = doc_compute((array)($in['items'] ?? []), $in['discount'] ?? 0, !$isBl && !empty($in['timbre']));
     if ($old && $old['type'] === 'facture' && (int)$old['paid'] > $calc['net']) {
         throw new RuntimeException('Le nouveau total est inférieur aux paiements déjà reçus (' . money($old['paid']) . ').');
     }
+    $tin = (array)($in['transporter'] ?? []);
+    transporter_clean($tin); // vérifie la saisie avant d'ouvrir la transaction
+    $mode = mb_substr(trim((string)($in['payment_mode'] ?? '')), 0, 60);
 
-    return tx(function () use ($u, $old, $type, $locId, $date, $due, $c, $cname, $calc, $in) {
+    return tx(function () use ($u, $old, $type, $locId, $date, $due, $c, $cname, $calc, $in, $tin, $mode) {
+        [$trId, $tr] = doc_transporter($tin);
         $phone = normalize_phone((string)($c['phone'] ?? ''));
         $clientId = !empty($c['id']) ? (int)$c['id'] : null;
         if (!$clientId && $phone === '') $clientId = (int)val('SELECT id FROM clients WHERE name = ? COLLATE NOCASE ORDER BY id LIMIT 1', [$cname]) ?: null;
@@ -212,7 +354,9 @@ function doc_save(array $in): int
             'date' => $date, 'due_date' => $due,
             'subtotal' => $calc['subtotal'], 'discount' => $calc['discount'], 'total_ht' => $calc['total_ht'], 'total_vat' => $calc['total_vat'],
             'total' => $calc['total'], 'timbre' => $calc['timbre'], 'net' => $calc['net'],
+            'payment_mode' => $mode,
             'terms' => mb_substr(trim((string)($in['terms'] ?? '')), 0, 300), 'transport' => mb_substr(trim((string)($in['transport'] ?? '')), 0, 120),
+            'transporter_id' => $trId, 'transporter_name' => $tr['name'], 'transporter_plate' => $tr['plate'], 'transporter_cin' => $tr['cin'],
             'warranty' => mb_substr(trim((string)($in['warranty'] ?? '')), 0, 160), 'notes' => mb_substr(trim((string)($in['notes'] ?? '')), 0, 1000),
             'internal_note' => mb_substr(trim((string)($in['internal_note'] ?? '')), 0, 1000), 'updated_at' => now(),
         ];
@@ -225,20 +369,22 @@ function doc_save(array $in): int
             $saleId = $old['sale_id'];
         } else {
             $saleId = !empty($in['sale_id']) ? (int)$in['sale_id'] : null;
-            $id = insert('documents', $data + ['type' => $type, 'number' => doc_number($type), 'status' => $type === 'devis' ? 'brouillon' : 'emise',
+            $id = insert('documents', $data + ['type' => $type, 'number' => doc_number($type),
+                'status' => ['devis' => 'brouillon', 'facture' => 'emise', 'bl' => 'a_livrer'][$type],
                 'source_id' => !empty($in['source_id']) ? (int)$in['source_id'] : null, 'sale_id' => $saleId,
                 'paid' => 0, 'created_by' => $u['id'] ?? null, 'created_at' => now()]);
         }
         foreach ($calc['items'] as $it) insert('document_items', ['document_id' => $id] + $it);
         $doc = one('SELECT * FROM documents WHERE id = ?', [$id]);
-        if ($type === 'facture') {
-            $applyStock = !$saleId && $locId && !empty($in['stock']);
+        // Facture ou bon de livraison : la marchandise peut sortir du stock du showroom (une seule fois pour la même vente).
+        if ($type !== 'devis') {
+            $applyStock = !$saleId && $locId && !empty($in['stock']) && !doc_stock_link($doc);
             if ($applyStock) doc_stock($doc, $calc['items'], -1);
             update('documents', ['stock_applied' => $applyStock ? 1 : 0], 'id = ?', [$id]);
-            doc_refresh_paid($id);
         }
-        audit($old ? DOC_TYPES[$type] . ' modifié' . ($type === 'facture' ? 'e' : '') : DOC_TYPES[$type] . ' créé' . ($type === 'facture' ? 'e' : ''),
-            'document', $id, $doc['number'] . ' · ' . $cname . ' · ' . money($calc['net']));
+        if ($type === 'facture') doc_refresh_paid($id);
+        $e = doc_fem($type) ? 'e' : '';
+        audit(DOC_TYPES[$type] . ($old ? ' modifié' : ' créé') . $e, 'document', $id, $doc['number'] . ' · ' . $cname . ' · ' . money($calc['net']));
         return $id;
     });
 }
@@ -249,48 +395,96 @@ function doc_can_manage(array $d): bool
     return can('invoices.edit') && doc_can_loc($d['location_id'] !== null ? (int)$d['location_id'] : null);
 }
 
-/** Un devis reste modifiable tant qu'il n'est pas facturé ; une facture tant qu'elle n'est pas annulée. */
+/**
+ * Un devis ou un bon de livraison reste modifiable tant qu'il n'est pas facturé ; une facture tant qu'elle n'est pas annulée.
+ */
 function doc_editable(array $d): bool
 {
     if (!doc_can_manage($d)) return false;
-    if ($d['type'] === 'devis') return $d['status'] !== 'facture';
-    return $d['status'] !== 'annulee';
+    if ($d['type'] === 'facture') return $d['status'] !== 'annulee';
+    return $d['status'] !== 'facture';
 }
+
+/** Statuts qu'on choisit à la main : suivi d'un devis, livraison d'un bon de livraison. */
+const DOC_MANUAL_STATUS = ['devis' => ['brouillon', 'envoye', 'accepte', 'refuse'], 'bl' => ['a_livrer', 'livre']];
 
 function doc_set_status(array $d, string $status): void
 {
-    if ($d['type'] !== 'devis' || !in_array($status, ['brouillon', 'envoye', 'accepte', 'refuse'], true)) throw new RuntimeException('Statut invalide.');
-    if ($d['status'] === 'facture') throw new RuntimeException('Ce devis est déjà facturé.');
+    if (!in_array($status, DOC_MANUAL_STATUS[$d['type']] ?? [], true)) throw new RuntimeException('Statut invalide.');
+    if ($d['status'] === 'facture') throw new RuntimeException(($d['type'] === 'bl' ? 'Ce bon de livraison' : 'Ce devis') . ' est déjà facturé.');
     $data = ['status' => $status, 'updated_at' => now()];
     if ($status === 'envoye' && !$d['sent_at']) $data['sent_at'] = now();
-    if (in_array($status, ['accepte', 'refuse'], true)) $data['closed_at'] = now();
+    if (in_array($status, ['accepte', 'refuse', 'livre'], true)) $data['closed_at'] = now();
+    if ($status === 'a_livrer') $data['closed_at'] = null;
     update('documents', $data, 'id = ?', [$d['id']]);
-    audit('devis ' . mb_strtolower(DOC_STATUS['devis'][$status]), 'document', $d['id'], $d['number']);
+    audit(mb_strtolower(DOC_TYPES[$d['type']]) . ' ' . mb_strtolower(DOC_STATUS[$d['type']][$status]), 'document', $d['id'], $d['number']);
 }
 
-/** Copie un document (devis → facture, ou duplication). Retourne l'id du nouveau document. */
+/** Ce que chaque type de document peut produire : devis → facture, bon de livraison → facture, facture → bon de livraison. */
+function doc_can_convert(array $src, string $type): bool
+{
+    return in_array($src['type'] . '>' . $type, ['devis>facture', 'bl>facture', 'facture>bl'], true);
+}
+
+/**
+ * Copie un document : transformation (devis ou bon de livraison → facture, facture → bon de livraison) ou duplication.
+ * Retourne l'id du nouveau document.
+ */
 function doc_copy(array $src, string $type, bool $stock = false): int
 {
     $items = array_map(fn($it) => ['product_id' => $it['product_id'], 'label' => $it['label'], 'description' => $it['description'],
         'qty' => $it['qty'], 'unit_price' => m_in($it['unit_price']), 'discount_pct' => $it['discount_pct'], 'vat_rate' => $it['vat_rate']], doc_items((int)$src['id']));
-    $toInvoice = $src['type'] === 'devis' && $type === 'facture';
-    $days = (int)setting($type === 'devis' ? 'quote_validity_days' : 'invoice_due_days', 0);
-    return tx(function () use ($src, $type, $items, $toInvoice, $days, $stock) {
+    $convert = $src['type'] !== $type;
+    if ($convert && !doc_can_convert($src, $type)) throw new RuntimeException('Transformation impossible pour ce document.');
+    if ($convert && $type === 'facture' && $src['status'] === 'facture') throw new RuntimeException('Ce document est déjà facturé.');
+    if ($convert && $src['type'] === 'bl' && ($inv = doc_bl_invoice($src))) throw new RuntimeException('Ce bon de livraison est déjà lié à la facture ' . $inv['number'] . '.');
+    if ($convert && $src['type'] === 'facture' && $src['status'] === 'annulee') throw new RuntimeException('Cette facture est annulée.');
+    // La facture d'un bon de livraison ne ressort pas la marchandise déjà sortie par le bon (et inversement).
+    if ($convert && $src['stock_applied']) $stock = false;
+    $days = ['devis' => (int)setting('quote_validity_days', 0), 'facture' => (int)setting('invoice_due_days', 0)][$type] ?? 0;
+    return tx(function () use ($src, $type, $items, $convert, $days, $stock) {
         $id = doc_save([
             'type' => $type, 'location_id' => $src['location_id'],
             'client' => ['id' => $src['client_id'], 'name' => $src['client_name'], 'phone' => $src['client_phone'], 'email' => $src['client_email'],
                 'address' => $src['client_address'], 'mf' => $src['client_mf']],
             'date' => today(), 'due_date' => $days > 0 ? date('Y-m-d', strtotime("+$days days")) : null,
-            'items' => $items, 'discount' => m_in($src['discount']), 'timbre' => (int)$src['timbre'] > 0,
-            'terms' => $src['terms'], 'transport' => $src['transport'], 'warranty' => $src['warranty'], 'notes' => $src['notes'],
-            'source_id' => $toInvoice ? $src['id'] : null, 'stock' => $stock,
+            'items' => $items, 'discount' => m_in($src['discount']),
+            'timbre' => $src['type'] === 'bl' && $type === 'facture' ? (int)setting('timbre', 1000) > 0 : (int)$src['timbre'] > 0,
+            'payment_mode' => $src['payment_mode'] ?? '', 'terms' => $src['terms'], 'transport' => $src['transport'],
+            'transporter' => ['id' => $src['transporter_id'] ?? null, 'name' => $src['transporter_name'] ?? '', 'plate' => $src['transporter_plate'] ?? '', 'cin' => $src['transporter_cin'] ?? ''],
+            'warranty' => $src['warranty'], 'notes' => $src['notes'],
+            'source_id' => $convert ? $src['id'] : null, 'sale_id' => $convert ? $src['sale_id'] : null, 'stock' => $stock,
         ]);
-        if ($toInvoice) {
+        if ($convert && $type === 'facture') {
             update('documents', ['status' => 'facture', 'closed_at' => $src['closed_at'] ?: now(), 'updated_at' => now()], 'id = ?', [$src['id']]);
-            audit('devis facturé', 'document', $src['id'], $src['number']);
+            audit(mb_strtolower(DOC_TYPES[$src['type']]) . ' facturé', 'document', $src['id'], $src['number']);
         }
         return $id;
     });
+}
+
+/** Facture (non annulée) liée à un bon de livraison : celle qui en est issue, ou celle dont il est issu. */
+function doc_bl_invoice(array $bl): ?array
+{
+    if ($bl['type'] !== 'bl') return null;
+    return one("SELECT id, number, status FROM documents WHERE type = 'facture' AND status <> 'annulee' AND (source_id = ? OR id = ?) ORDER BY id LIMIT 1",
+        [(int)$bl['id'], (int)($bl['source_id'] ?? 0)]);
+}
+
+/** Facture ou bon de livraison lié qui a déjà sorti la marchandise du stock (null sinon). */
+function doc_stock_link(array $d): ?array
+{
+    if ($d['type'] === 'devis' || empty($d['id'])) return null;
+    return one("SELECT id, type, number FROM documents WHERE stock_applied = 1 AND type IN ('facture', 'bl') AND status <> 'annulee' AND id <> ?
+        AND (id = ? OR source_id = ?) ORDER BY id LIMIT 1", [(int)$d['id'], (int)($d['source_id'] ?? 0), (int)$d['id']]);
+}
+
+/** Une facture annulée ou supprimée rend son document d'origine : devis « accepté », bon de livraison « livré » ou « à livrer ». */
+function doc_release_source(array $d): void
+{
+    if ($d['type'] !== 'facture' || !$d['source_id']) return;
+    q("UPDATE documents SET status = CASE type WHEN 'devis' THEN 'accepte' ELSE (CASE WHEN closed_at IS NULL THEN 'a_livrer' ELSE 'livre' END) END,
+        updated_at = ? WHERE id = ? AND status = 'facture' AND type IN ('devis', 'bl')", [now(), $d['source_id']]);
 }
 
 /** Facture établie à partir d'une vente de caisse (articles et paiements repris, stock déjà sorti). */
@@ -374,27 +568,33 @@ function doc_cancel(array $d, string $reason): void
         if ($d['stock_applied']) doc_stock($d, doc_items((int)$d['id']), +1);
         update('documents', ['status' => 'annulee', 'stock_applied' => 0, 'cancelled_at' => now(), 'cancelled_by' => user()['id'] ?? null,
             'cancel_reason' => mb_substr($reason, 0, 300), 'updated_at' => now()], 'id = ?', [$d['id']]);
-        if ($d['source_id']) q("UPDATE documents SET status = 'accepte', updated_at = ? WHERE id = ? AND status = 'facture'", [now(), $d['source_id']]);
+        doc_release_source($d);
         audit('facture annulée', 'document', $d['id'], $d['number'] . ' · ' . $reason);
     });
 }
 
-/** Vrai si $d porte le dernier numéro de facture attribué pour son année (compteur). */
-function doc_invoice_is_last(array $d): bool
+/** Vrai si $d porte le dernier numéro attribué pour son type et son année (compteur). */
+function doc_is_last(array $d): bool
 {
     if (!preg_match('/(\d+)\/(\d{2})$/', (string)$d['number'], $m)) return false;
-    return (int)$m[1] === (int)val('SELECT value FROM counters WHERE key = ?', ['doc:facture:' . (2000 + (int)$m[2])]);
+    return (int)$m[1] === (int)val('SELECT value FROM counters WHERE key = ?', ['doc:' . $d['type'] . ':' . (2000 + (int)$m[2])]);
 }
 
 /**
  * Toute facture peut être supprimée par qui gère les factures (direction et showrooms). Ses paiements sont supprimés
  * avec elle et le stock sorti est remis. Seule exception : un paiement en espèces compté dans une caisse déjà clôturée.
+ * Un bon de livraison déjà facturé attend que sa facture soit annulée ou supprimée.
  * Retourne la raison du refus, ou null.
  */
-function doc_invoice_delete_block(array $d): ?string
+function doc_delete_block(array $d): ?string
 {
-    if ($d['type'] !== 'facture') return 'Ce document n’est pas une facture.';
-    if (!doc_can_manage($d)) return 'Votre profil ne permet pas de supprimer cette facture.';
+    $what = ['devis' => 'ce devis', 'facture' => 'cette facture', 'bl' => 'ce bon de livraison'][$d['type']] ?? 'ce document';
+    if (!doc_can_manage($d)) return 'Votre profil ne permet pas de supprimer ' . $what . '.';
+    if ($d['type'] === 'bl' && $d['status'] === 'facture') {
+        $inv = one("SELECT number FROM documents WHERE source_id = ? AND type = 'facture' AND status <> 'annulee' ORDER BY id LIMIT 1", [$d['id']]);
+        return 'Ce bon de livraison est facturé' . ($inv ? ' (facture ' . $inv['number'] . ')' : '') . ' : annulez ou supprimez d’abord la facture.';
+    }
+    if ($d['type'] !== 'facture') return null;
     $closed = (int)val("SELECT COUNT(*) FROM document_payments p JOIN cash_sessions s ON s.id = p.session_id WHERE p.document_id = ? AND s.status = 'fermee'", [$d['id']]);
     if ($closed) return 'Un paiement en espèces de cette facture fait partie d’une caisse déjà clôturée : la facture ne peut plus être supprimée. Annulez-la plutôt.';
     return null;
@@ -404,49 +604,53 @@ function doc_invoice_delete_block(array $d): ?string
 function doc_delete_effects(array $d): string
 {
     if ($d['type'] === 'devis') return 'Le devis ' . $d['number'] . ' sera supprimé définitivement.';
-    $n = (int)val('SELECT COUNT(*) FROM document_payments WHERE document_id = ?', [$d['id']]);
-    $out = ['La facture ' . $d['number'] . ' (' . money($d['net']) . ') sera supprimée définitivement'];
-    if ($n) $out[] = 'ses ' . $n . ' paiement(s) (' . money($d['paid']) . ') aussi';
+    $isBl = $d['type'] === 'bl';
+    $out = [($isBl ? 'Le bon de livraison ' : 'La facture ') . $d['number'] . ' (' . money($d['net']) . ') sera ' . ($isBl ? 'supprimé' : 'supprimée') . ' définitivement'];
+    if (!$isBl && ($n = (int)val('SELECT COUNT(*) FROM document_payments WHERE document_id = ?', [$d['id']]))) $out[] = 'ses ' . $n . ' paiement(s) (' . money($d['paid']) . ') aussi';
     if ($d['stock_applied']) $out[] = 'les articles seront remis en stock';
-    if ($d['source_id']) $out[] = 'le devis d’origine redeviendra « accepté »';
-    $out[] = doc_invoice_is_last($d) ? 'son numéro sera repris par la prochaine facture'
+    if (!$isBl && $d['source_id'] && ($src = one('SELECT type FROM documents WHERE id = ?', [$d['source_id']]))) {
+        $out[] = $src['type'] === 'bl' ? 'le bon de livraison d’origine pourra de nouveau être facturé' : 'le devis d’origine redeviendra « accepté »';
+    }
+    $out[] = doc_is_last($d) ? 'son numéro sera repris par ' . ($isBl ? 'le prochain bon de livraison' : 'la prochaine facture')
         : 'son numéro ne sera pas réutilisé (un trou dans la numérotation, noté dans le journal)';
     return implode(' ; ', $out) . '.';
 }
 
 function doc_delete(array $d): void
 {
-    if ($d['type'] === 'facture') {
-        if ($why = doc_invoice_delete_block($d)) throw new RuntimeException($why);
+    if ($why = doc_delete_block($d)) throw new RuntimeException($why);
+    if ($d['type'] !== 'devis') {
+        $action = $d['type'] === 'bl' ? 'bon de livraison supprimé' : 'facture supprimée';
         preg_match('/(\d+)\/(\d{2})$/', (string)$d['number'], $m);
-        $last = doc_invoice_is_last($d);
-        tx(function () use ($d, $m, $last) {
+        $last = doc_is_last($d);
+        tx(function () use ($d, $m, $last, $action) {
             if ($d['stock_applied']) doc_stock($d, doc_items((int)$d['id']), +1);
-            if ($d['source_id']) q("UPDATE documents SET status = 'accepte', updated_at = ? WHERE id = ? AND status = 'facture'", [now(), $d['source_id']]);
+            doc_release_source($d);
             $pays = all('SELECT amount FROM document_payments WHERE document_id = ?', [$d['id']]);
             q('DELETE FROM document_payments WHERE document_id = ?', [$d['id']]);
+            // Un document issu de celui-ci (bon de livraison d'une facture, facture d'un bon) reste intact : il perd seulement le lien.
+            q('UPDATE documents SET source_id = NULL WHERE source_id = ?', [$d['id']]);
             q('DELETE FROM documents WHERE id = ?', [$d['id']]);
-            // Dernière facture : numéro libéré, la prochaine le reprend. Sinon le numéro reste un trou, tracé dans le journal.
+            // Dernier numéro : libéré, le prochain document le reprend. Sinon le numéro reste un trou, tracé dans le journal.
             if ($last && $m) {
                 $prefix = substr((string)$d['number'], 0, -strlen($m[0]));
                 $n = (int)$m[1] - 1;
-                // Les numéros juste avant, laissés libres par d'autres factures supprimées, sont aussi repris : la suite
+                // Les numéros juste avant, laissés libres par d'autres documents supprimés, sont aussi repris : la suite
                 // redevient continue. Un numéro jamais attribué (avant le numéro de départ choisi) n'est pas touché.
                 while ($n > 0) {
                     $num = $prefix . str_pad((string)$n, 6, '0', STR_PAD_LEFT) . '/' . $m[2];
-                    if (val("SELECT 1 FROM documents WHERE type = 'facture' AND number = ?", [$num])
-                        || !val("SELECT 1 FROM audit_log WHERE action = 'facture supprimée' AND details LIKE ?", [$num . ' · %'])) break;
+                    if (val('SELECT 1 FROM documents WHERE type = ? AND number = ?', [$d['type'], $num])
+                        || !val('SELECT 1 FROM audit_log WHERE action = ? AND details LIKE ?', [$action, $num . ' · %'])) break;
                     $n--;
                 }
-                q('UPDATE counters SET value = ? WHERE key = ? AND value = ?', [$n, 'doc:facture:' . (2000 + (int)$m[2]), (int)$m[1]]);
+                q('UPDATE counters SET value = ? WHERE key = ? AND value = ?', [$n, 'doc:' . $d['type'] . ':' . (2000 + (int)$m[2]), (int)$m[1]]);
             }
-            audit('facture supprimée', 'document', $d['id'], $d['number'] . ' · ' . $d['client_name'] . ' · ' . money($d['net'])
+            audit($action, 'document', $d['id'], $d['number'] . ' · ' . $d['client_name'] . ' · ' . money($d['net'])
                 . ($pays ? ' · ' . count($pays) . ' paiement(s) supprimé(s) : ' . money(array_sum(array_column($pays, 'amount'))) : '')
                 . ($last ? ' · numéro libéré' : ' · numéro non réutilisé'));
         });
         return;
     }
-    if (!doc_can_manage($d)) throw new RuntimeException('Votre profil ne permet pas de supprimer ce devis.');
     tx(function () use ($d) {
         // Une facture issue de ce devis reste intacte : elle perd seulement le lien vers le devis.
         q('UPDATE documents SET source_id = NULL WHERE source_id = ?', [$d['id']]);

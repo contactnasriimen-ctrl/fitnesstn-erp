@@ -30,7 +30,7 @@ function db(): PDO
     return $pdo;
 }
 
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 /** Met à jour le schéma d'une base existante (fichiers app/migrations/NNN_*.sql). */
 function db_migrate(PDO $pdo): void
@@ -48,7 +48,7 @@ function db_migrate(PDO $pdo): void
         $defaults = [
             'company_legal_name' => '', 'company_address' => '',
             'invoice_prefix' => '', 'quote_prefix' => 'DV-',
-            'invoice_terms' => 'Paiement comptant à la livraison', 'invoice_transport' => 'Gratuit', 'invoice_warranty' => 'Selon le produit',
+            'invoice_terms' => '', 'invoice_payment_mode' => 'Comptant à la livraison', 'bl_prefix' => 'BL-', 'invoice_transport' => 'Gratuit', 'invoice_warranty' => 'Selon le produit',
             'quote_validity_days' => '15', 'invoice_due_days' => '0', 'doc_color' => '#145c54', 'doc_stamp' => '', 'auto_backup' => '1',
             'bank_name' => '', 'bank_rib' => '', 'bank_iban' => '', 'bank_bic' => '',
             'warranty_notice' => "Toute utilisation hors du cadre domestique (usage professionnel, salle de sport, collectivité, kiné…) ou non conforme aux conditions normales d’utilisation entraîne l’annulation immédiate de la garantie.\n"

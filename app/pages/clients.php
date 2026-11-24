@@ -73,7 +73,8 @@ if ($a === 'view') {
     $rest = array_sum(array_map(fn($s) => $s['status'] === 'partielle' ? (int)$s['total'] - (int)$s['paid'] : 0, $sales));
     $docs = can('invoices.view') ? all('SELECT * FROM documents WHERE client_id = ?' . ($scope ? ' AND location_id = ' . (int)$scope : '') . ' ORDER BY date DESC, id DESC', [$c['id']]) : [];
     $actions = (can('invoices.edit') ? '<a class="btn sm" href="' . e(url('quotes', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('quote') . 'Devis</a>'
-            . '<a class="btn sm" href="' . e(url('invoices', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('invoice') . 'Facture</a>' : '')
+            . '<a class="btn sm" href="' . e(url('invoices', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('invoice') . 'Facture</a>'
+            . '<a class="btn sm" href="' . e(url('delivery_notes', ['a' => 'edit', 'client' => $c['id']])) . '">' . icon('clipboard') . 'Bon de livraison</a>' : '')
         . (can('clients.edit') ? '<a class="btn sm primary" href="' . e(url('clients', ['a' => 'edit', 'id' => $c['id']])) . '">' . icon('edit') . 'Modifier</a>' : '');
     layout_start($c['name'], 'clients', ['actions' => $actions]);
     ?>
@@ -108,10 +109,10 @@ if ($a === 'view') {
         <?php if (!$sales): ?><tr><td class="empty-row">Aucune vente.</td></tr><?php endif; ?>
       </table></section>
     <?php if ($docs): ?>
-      <section class="card flush"><div class="card-head"><b>Devis & factures</b></div>
+      <section class="card flush"><div class="card-head"><b>Devis, factures & bons de livraison</b></div>
         <table class="tbl hover">
           <?php foreach ($docs as $dc): ?>
-            <tr data-href="<?= e(url(doc_route($dc['type']), ['a' => 'view', 'id' => $dc['id']])) ?>"><td><?= icon($dc['type'] === 'devis' ? 'quote' : 'invoice') ?></td><td><b><?= e($dc['number']) ?></b><br><small class="muted"><?= e(DOC_TYPES[$dc['type']]) ?></small></td>
+            <tr data-href="<?= e(url(doc_route($dc['type']), ['a' => 'view', 'id' => $dc['id']])) ?>"><td><?= icon(doc_icon($dc['type'])) ?></td><td><b><?= e($dc['number']) ?></b><br><small class="muted"><?= e(DOC_TYPES[$dc['type']]) ?></small></td>
               <td><?= fdate($dc['date']) ?></td><td class="num"><?= money($dc['net']) ?></td><td><?= doc_badge($dc) ?></td></tr>
           <?php endforeach; ?>
         </table></section>
