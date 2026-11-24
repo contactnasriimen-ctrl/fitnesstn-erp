@@ -230,3 +230,33 @@ html.mascot-off .mascot { display: none; }
 .bulk-bar > span { flex: 1; color: var(--text-2); }
 @media (max-width: 600px) { .bulk-bar { top: 58px; } .bulk-bar > span { flex-basis: 100%; } }
 @media print { .bulk-bar, .tbl .sel { display: none !important; } }
+
+/* v1.6 : bons de livraison, transporteurs et modalités de paiement */
+.status-steps.two { grid-template-columns: repeat(2, 1fr); }
+.step-btn.st-a_livrer.on { background: var(--warn, #d97706); border-color: var(--warn, #d97706); }
+.step-btn.st-livre.on { background: var(--ok); border-color: var(--ok); }
+.form-grid h3.tr-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.form-grid h3.tr-head small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.tr-manage { margin-left: auto; font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.lists-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.lists-grid .card-head b { display: inline-flex; align-items: center; gap: 8px; }
+.list-form { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2, #f7f9fc); }
+.list-form.editing { background: #fff8e6; }
+.list-form p { margin: 0 0 8px; }
+.list-form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.list-form-row label { flex: 1 1 140px; margin: 0; }
+.list-form-row label.grow { flex: 3 1 220px; }
+.list-form-row .btn { flex: none; }
+.row-btns { white-space: nowrap; }
+.row-btns, .row-btns form { display: inline-flex; gap: 4px; align-items: center; margin: 0; }
+.tbl tr.row-on td { background: #fff8e6; }
+.pm-list { list-style: none; margin: 0; padding: 0; }
+.pm-list li { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pm-list li:last-child { border-bottom: 0; }
+.pm-list li.is-default { background: #f1faf5; }
+.pm-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pm-label small { flex-basis: 100%; }
+.pm-edit { display: flex; gap: 8px; flex: 1; flex-wrap: wrap; }
+.pm-edit input { flex: 1 1 180px; }
+.pm-foot { padding: 10px 16px; border-top: 1px solid var(--line); margin: 0; }
+@media (max-width: 900px) { .lists-grid { grid-template-columns: 1fr; } }

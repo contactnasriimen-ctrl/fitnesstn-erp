@@ -119,8 +119,9 @@
       ht += h;
       if (r > 0) vatRows.push(`<div><dt>TVA ${String(r).replace('.', ',')} %</dt><dd>${fmt(ttc - h)}</dd></div>`);
     });
-    const timbre = $('[data-timbre]', form).checked ? D.timbre : 0;
-    const set = (k, v) => { $(`[data-t="${k}"]`, form).textContent = v; };
+    const tCheck = $('[data-timbre]', form); // absent sur un bon de livraison (pas de timbre fiscal)
+    const timbre = tCheck && tCheck.checked ? D.timbre : 0;
+    const set = (k, v) => { const el = $(`[data-t="${k}"]`, form); if (el) el.textContent = v; };
     set('subtotal', fmt(sub));
     set('ht', fmt(ht));
     set('timbre', fmt(timbre));
@@ -217,12 +218,48 @@
   // Changer le nom d'un client lié crée un nouveau client
   cf('name').addEventListener('input', () => { if (cf('id').value) { cf('id').value = ''; linked.hidden = true; } });
 
+  /* ---------- Transporteur : choisi dans la liste ou saisi (nom, matricule, CIN) ---------- */
+  const tf = (k) => $(`[data-tr="${k}"]`, form);
+  const trPick = $('[data-tr-pick]', form);
+  const trSave = $('[data-tr-save-wrap]', form);
+  const trList = D.transporters || [];
+  const trSync = () => {
+    // « Ajouter à la liste » n'apparaît que pour un nouveau transporteur (nom saisi, pas choisi dans la liste, absent de la liste)
+    const name = norm(tf('name').value.trim());
+    const known = trList.some((t) => norm(t.name) === name && norm(t.plate) === norm(tf('plate').value.trim()));
+    if (trSave) trSave.hidden = !name || !!tf('id').value || known;
+  };
+  if (trPick) {
+    trPick.addEventListener('change', () => {
+      const t = trList.find((x) => String(x.id) === trPick.value);
+      tf('id').value = t ? t.id : '';
+      tf('name').value = t ? t.name : '';
+      tf('plate').value = t ? t.plate : '';
+      tf('cin').value = t ? t.cin : '';
+      trSync();
+      if (!t) tf('name').focus();
+    });
+  }
+  ['name', 'plate', 'cin'].forEach((k) => tf(k).addEventListener('input', () => {
+    // Modifier un transporteur choisi le détache de sa fiche : le document garde ce qui est saisi.
+    if (tf('id').value) {
+      const t = trList.find((x) => String(x.id) === tf('id').value);
+      if (!t || t.name !== tf('name').value || t.plate !== tf('plate').value || t.cin !== tf('cin').value) { tf('id').value = ''; if (trPick) trPick.value = ''; }
+    }
+    trSync();
+  }));
+  tf('plate').addEventListener('blur', () => { tf('plate').value = tf('plate').value.toUpperCase().replace(/\s+/g, ' ').trim(); });
+  trSync();
+
   /* ---------- Envoi ---------- */
   form.addEventListener('submit', (e) => {
     const errs = [];
     if (!cf('name').value.trim()) errs.push('le nom du client');
     const rows = $$('tr', tbody);
     if (!rows.length) errs.push('au moins un article');
+    const cin = tf('cin').value.replace(/\s+/g, '');
+    if (/^\d+$/.test(cin) && cin.length !== 8) errs.push('la CIN du transporteur (8 chiffres)');
+    if (!tf('name').value.trim() && (tf('plate').value.trim() || cin)) errs.push('le nom du transporteur');
     rows.forEach((tr) => {
       const lab = $('[data-f="label"]', tr);
       const bad = !lab.value.trim() || $('[data-f="unit_price"]', tr).value.trim() === '' || lineData(tr).qty < 1;
